@@ -27,7 +27,8 @@ while True:
         shape = face_utils.shape_to_np(shape)
         for (x,y) in shape:
             cv2.circle(frame, (x, y), 1, (0, 0, 255), -1)
-
+        cv2.line(frame, tuple(shape[36].ravel()), tuple(shape[45].ravel()), (0, 255, 0), thickness=3, lineType=8)
+        cv2.line(frame, tuple(shape[27].ravel()), tuple(shape[57].ravel()), (255, 0, 0), thickness=3, lineType=8)
         landmarks = predictor(gray, face)
 
     cv2.imshow("Frame", frame)
