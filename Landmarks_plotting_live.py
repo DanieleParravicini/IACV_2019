@@ -9,15 +9,15 @@ import time
 import dlib
 import numpy as np
 
-#surface 3 pro camera 0 
+#surface 3 pro camera 0
 #surface 4 pro camera 1
 cap = cv2.VideoCapture(0)
 
 def segment_eyes(frame, eye_left_landmarks, eye_right_landmarks):
-    
+
     eye_left_pts    = np.array(list(map(lambda p: list(p.ravel()), eye_left_landmarks)))
     eye_right_pts   = np.array(list(map(lambda p: list(p.ravel()), eye_right_landmarks)))
-    
+
     max_x_left = min(max(eye_left_pts[:,0]) + 10, frame.shape[1])
     min_x_left = max(min(eye_left_pts[:,0]) - 10, 0)
     max_y_left = min(max(eye_left_pts[:,1]) + 10, frame.shape[0])
@@ -36,17 +36,17 @@ def segment_eyes(frame, eye_left_landmarks, eye_right_landmarks):
     left  = frame[min_y_left:max_y_left,min_x_left:max_x_left]
     right  = frame[min_y_right:max_y_right,min_x_right:max_x_right]
     #print(eye_left_pts)
-    
+
     mask = np.zeros((frame.shape[0], frame.shape[1]))
-    
+
     cv2.fillConvexPoly(mask, eye_left_pts,  1)
     cv2.fillConvexPoly(mask, eye_right_pts, 1)
-    
+
     cv2.imshow('mask', mask)
-    
+
     mask = mask.astype(np.bool)
     out = np.zeros_like(frame)
-    out[mask] = frame[mask]  
+    out[mask] = frame[mask]
     cv2.imshow('eyes', out)
     return left,right
 
@@ -56,14 +56,14 @@ def prep_fit_iris(img):
     return img
 
 def fit_iris(img):
-    
-    #img = cv2.Canny(img,100,200) 
+
+    #img = cv2.Canny(img,100,200)
     cv2.imshow('canny',img)
     rows = img.shape[0]
     circles   = cv2.HoughCircles(np.uint8(img),cv2.HOUGH_GRADIENT,1,rows/8, param1=80, param2=28, minRadius=1, maxRadius=rows)
 
     if circles is None :
-        return 
+        return
 
     '''circles = np.uint16(np.around(circles))
     for i in circles[0,:]:
@@ -77,7 +77,7 @@ def fit_iris(img):
 
     cv2.imshow('detected circles',img)
     print(len(circles[0,:]))'''
-    
+
     return circles[0,0]
 
 def stack(one,two):
@@ -95,7 +95,7 @@ while True:
     gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
     gray = cv2.equalizeHist(gray)
     faces = detector(gray)
-   
+
     for i,face in enumerate(faces):
         #x, y = face.left(), face.top()
         #x1, y1 = face.right(), face.bottom()
@@ -110,7 +110,21 @@ while True:
         #fit eyes
         #left 37-42 right 43-48
         left,right = segment_eyes(gray, landmarks[36:42], landmarks[42:48])
-        
+
+        left = cv2.equalizeHist(left)
+        right = cv2.equalizeHist(right)
+
+        scale_percent = 300  # percent of original size
+        widthR = int(right.shape[1] * scale_percent / 100)
+        heightR = int(right.shape[0] * scale_percent / 100)
+        widthL = int(left.shape[1] * scale_percent / 100)
+        heightL = int(left.shape[0] * scale_percent / 100)
+        dimR = (widthR, heightR)
+        dimL = (widthL, heightL)
+        # resize image
+        right = cv2.resize(right, dimR, interpolation=cv2.INTER_AREA)
+        left = cv2.resize(left, dimL, interpolation=cv2.INTER_AREA)
+
         #detect iris:
         left   = prep_fit_iris(left)
         c_left = fit_iris(left)
