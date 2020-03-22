@@ -11,7 +11,7 @@ import numpy as np
 
 #surface 3 pro camera 0
 #surface 4 pro camera 1
-cap = cv2.VideoCapture(0)
+cap = cv2.VideoCapture(1)
 
 def segment_eyes(frame, eye_left_landmarks, eye_right_landmarks):
 
@@ -60,10 +60,12 @@ def fit_iris(img):
     #img = cv2.Canny(img,100,200)
     cv2.imshow('canny',img)
     rows = img.shape[0]
-    circles   = cv2.HoughCircles(np.uint8(img),cv2.HOUGH_GRADIENT,1,rows/8, param1=80, param2=28, minRadius=1, maxRadius=rows)
+    circles   = cv2.HoughCircles(np.uint8(img),cv2.HOUGH_GRADIENT,1,rows/8, param1=80, param2=28, minRadius=1, maxRadius=rows-20//2)
 
     if circles is None :
         return
+
+    print(circles)
 
     '''circles = np.uint16(np.around(circles))
     for i in circles[0,:]:
@@ -110,9 +112,6 @@ while True:
         #fit eyes
         #left 37-42 right 43-48
         left,right = segment_eyes(gray, landmarks[36:42], landmarks[42:48])
-
-        left = cv2.equalizeHist(left)
-        right = cv2.equalizeHist(right)
 
         scale_percent = 300  # percent of original size
         widthR = int(right.shape[1] * scale_percent / 100)
