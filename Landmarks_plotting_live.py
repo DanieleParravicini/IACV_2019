@@ -199,7 +199,7 @@ def iris_position(face_landmarks, eye_selector, detected_iris):
     D = math.sqrt((eye_external_landmark[0]-eye_internal_landmark[0])** 2+(eye_external_landmark[1]-eye_internal_landmark[1])**2)
     H = math.sqrt((eye_top_landmark[0]-eye_bottom_landmark[0])** 2+(eye_top_landmark[1]-eye_bottom_landmark[1])**2)
 
-    projection_point_horizontal = project((eye_internal_landmark[0], eye_internal_landmark[1]), (eye_external_landmark[0], eye_external_landmark[1]), (detected_iris[0], detected_iris[1]))
+    projection_point_horizontal = project(np.asarray(eye_internal_landmark), np.asarray(eye_external_landmark), (detected_iris[:2]))
 
     d_internal = math.sqrt((eye_external_landmark[0]-projection_point_horizontal[0]) ** 2+(eye_external_landmark[1]-projection_point_horizontal[1])**2)
     R_d = d_internal/D      #ratio of position (all versus the nose = 0, all the way out = 1)
@@ -232,7 +232,7 @@ def head_yaw(face_landmarks):                       #rotation along the vertical
 def project(line_point_1, line_point_2, point):
     h1 = point-line_point_1
     h2 = line_point_2-line_point_1
-    return line_point_1 + dot(h1, h2)/dot(h2, h2)*h2
+    return line_point_1 + np.dot(h1, h2)/np.dot(h2, h2)*h2
 
 def line_intersection(line1, line2):
     xdiff = (line1[0][0] - line1[1][0], line2[0][0] - line2[1][0])
@@ -300,7 +300,7 @@ while True:
         #detect iris:
         left   = prep_fit_iris(left,5)
         m_l    = rescale(m_l.astype(np.uint8),5)
-        c_left = fit_iris_with_IPF(left, m_l)
+        c_left = fit_iris(left)
 
         right  = prep_fit_iris(right,5)
         m_r    = rescale(m_r.astype(np.uint8),5)
@@ -313,7 +313,7 @@ while True:
         print('Pitch angle: ')
         print(head_pitch(landmarks))
 
-        #print(iris_position(landmarks, 0, c_left))
+        print(iris_position(landmarks, 0, c_left))
         #print(iris_position(landmarks, 1, c_right))
 
         #plot add 3rd channel to 
