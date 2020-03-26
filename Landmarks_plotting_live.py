@@ -6,6 +6,7 @@ import argparse
 import cv2
 import imutils
 import time
+import math
 import dlib
 import numpy as np
 import matplotlib
@@ -13,7 +14,7 @@ import matplotlib.pyplot as plt
 
 #surface 3 pro camera 0
 #surface 4 pro camera 1
-cap = cv2.VideoCapture(0)
+cap = cv2.VideoCapture(1)
 
 def exagon_padding(pts, padx, pady):
     pts[0,0]-=padx
@@ -32,7 +33,6 @@ def bounding_box(pts,  width, height, padx=0, pady=0,):
    
     return left,right,top,bottom
 
-
 def extract_polyline(img, poly_pts):
     l,r,t,b   = bounding_box(poly_pts, img.shape[1], img.shape[0])
     sub_img   = np.array(img[t:b+1,l:r+1])
@@ -49,7 +49,6 @@ def extract_polyline(img, poly_pts):
     
 
     return out, mask
-
 
 def segment_eyes(frame, eye_left_landmarks, eye_right_landmarks, square=False):
 
@@ -184,6 +183,73 @@ def rescale(img, scale_percent):
     return cv2.resize(img, dimR, interpolation=cv2.INTER_AREA )
 
 
+# eye_selector = 0 -> left eye eye_selector = 1 -> right eye
+def iris_position(face_landmarks, eye_selector, detected_iris):
+    if(eye_selector == 0):
+        eye_external_landmark = landmarks[36]
+        eye_internal_landmark = landmarks[39]
+        eye_top_landmark = landmarks[38]
+        eye_bottom_landmark = landmarks[40]
+    else:
+        eye_external_landmark = landmarks[45]
+        eye_internal_landmark = landmarks[42]
+        eye_top_landmark = landmarks[43]
+        eye_bottom_landmark = landmarks[47]
+
+    D = math.sqrt((eye_external_landmark[0]-eye_internal_landmark[0])** 2+(eye_external_landmark[1]-eye_internal_landmark[1])**2)
+    H = math.sqrt((eye_top_landmark[0]-eye_bottom_landmark[0])** 2+(eye_top_landmark[1]-eye_bottom_landmark[1])**2)
+
+    projection_point_horizontal = project((eye_internal_landmark[0], eye_internal_landmark[1]), (eye_external_landmark[0], eye_external_landmark[1]), (detected_iris[0], detected_iris[1]))
+
+    d_internal = math.sqrt((eye_external_landmark[0]-projection_point_horizontal[0]) ** 2+(eye_external_landmark[1]-projection_point_horizontal[1])**2)
+    R_d = d_internal/D      #ratio of position (all versus the nose = 0, all the way out = 1)
+
+    projection_point_vertical = project((eye_bottom_landmark[0],eye_bottom_landmark[1]), (eye_top_landmark[0], eye_top_landmark[1]), (detected_iris[0], detected_iris[1]))
+    h_bottom = math.sqrt((eye_bottom_landmark[0]-projection_point_vertical[0]) ** 2+(eye_bottom_landmark[1]-projection_point_vertical[1])**2)
+    R_h = h_bottom/H        # ratio of position (all the way down = 0, all the way up = 1)
+    return R_d, R_h
+
+
+def head_roll(face_landmarks):                      #rotation along the axis perpendicular to the plane
+    D = math.sqrt((landmarks[36][0]-landmarks[45][0])** 2+(landmarks[36][1]-landmarks[45][1])**2)
+    return math.asin((landmarks[45][1]-landmarks[36][1])/D)
+
+def head_pitch(face_landmarks):                     # rotation along the orizontal axis TO BE CALIBRATED
+    extra_point_x = face_landmarks[21][0]+(face_landmarks[22][0]-face_landmarks[21][0])/2
+    extra_point_y = face_landmarks[21][1]+(face_landmarks[22][1]-face_landmarks[21][1])/2
+
+    D = math.sqrt((extra_point_x-face_landmarks[57][0])** 2+(extra_point_y - face_landmarks[57][1])**2)
+    centre_point = line_intersection((face_landmarks[36], face_landmarks[45]), ((extra_point_x, extra_point_y), face_landmarks[57]))
+    bottom_to_centre = math.sqrt(((face_landmarks[57][0]-centre_point[0]) ** 2)+(face_landmarks[57][1]-centre_point[1])**2)
+    return math.asin(bottom_to_centre/D)
+
+def head_yaw(face_landmarks):                       #rotation along the vertical axis TO BE CALIBRATED
+    D = math.sqrt((face_landmarks[36][0]-face_landmarks[45][0])** 2+(face_landmarks[36][1]-face_landmarks[45][1])**2)
+    centre_point = line_intersection((face_landmarks[36], face_landmarks[45]), (face_landmarks[27], face_landmarks[57]))
+    left_to_centre = math.sqrt(((face_landmarks[36][0]-centre_point[0]) ** 2)+(face_landmarks[36][1]-centre_point[1])**2)
+    return math.asin(left_to_centre/D)
+
+def project(line_point_1, line_point_2, point):
+    h1 = point-line_point_1
+    h2 = line_point_2-line_point_1
+    return line_point_1 + dot(h1, h2)/dot(h2, h2)*h2
+
+def line_intersection(line1, line2):
+    xdiff = (line1[0][0] - line1[1][0], line2[0][0] - line2[1][0])
+    ydiff = (line1[0][1] - line1[1][1], line2[0][1] - line2[1][1])
+
+    def det(a, b):
+        return a[0] * b[1] - a[1] * b[0]
+
+    div = det(xdiff, ydiff)
+    if div == 0:
+       raise Exception('lines do not intersect')
+
+    d = (det(*line1), det(*line2))
+    x = det(d, xdiff) / div
+    y = det(d, ydiff) / div
+    return x, y
+
 def get_mean_value_inside_circle(img,xc,yc,radius):
     
     y,x = np.ogrid[0:img.shape[0], 0:img.shape[1]]
@@ -222,13 +288,15 @@ while True:
         for (x,y) in landmarks:
             cv2.circle(frame, (x, y), 1, (0, 0,255), -1)
         ##
+        extra_point_x = landmarks[21][0] + (landmarks[22][0]-landmarks[21][0])/2
+        extra_point_y = landmarks[21][1] + (landmarks[22][1]-landmarks[21][1])/2
         cv2.line(frame, tuple(landmarks[36].ravel()), tuple(landmarks[45].ravel()), (0, 255, 0), thickness=3, lineType=8)
-        cv2.line(frame, tuple(landmarks[27].ravel()), tuple(landmarks[57].ravel()), (255, 0, 0), thickness=3, lineType=8)
+        cv2.line(frame, (int(extra_point_x), int(extra_point_y)), tuple(landmarks[57].ravel()), (255, 0, 0), thickness=3, lineType=8)
         #fit eyes
         #left 37-42 right 43-48
 
         (left, m_l),(right, m_r) = segment_eyes(gray, landmarks[36:42], landmarks[42:48])
-        
+
         #detect iris:
         left   = prep_fit_iris(left,5)
         m_l    = rescale(m_l.astype(np.uint8),5)
@@ -237,7 +305,16 @@ while True:
         right  = prep_fit_iris(right,5)
         m_r    = rescale(m_r.astype(np.uint8),5)
         c_right= fit_iris(right)
-        
+
+        print('Roll angle: ')
+        print(head_roll(landmarks))
+        print('Yaw angle: ')
+        print(head_yaw(landmarks))
+        print('Pitch angle: ')
+        print(head_pitch(landmarks))
+
+        #print(iris_position(landmarks, 0, c_left))
+        #print(iris_position(landmarks, 1, c_right))
 
         #plot add 3rd channel to 
         new_left = np.zeros([left.shape[0], left.shape[1],3],np.uint8)
