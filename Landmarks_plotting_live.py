@@ -199,14 +199,10 @@ def iris_position(face_landmarks, eye_selector, detected_iris):
     D = math.sqrt((eye_external_landmark[0]-eye_internal_landmark[0])** 2+(eye_external_landmark[1]-eye_internal_landmark[1])**2)
     H = math.sqrt((eye_top_landmark[0]-eye_bottom_landmark[0])** 2+(eye_top_landmark[1]-eye_bottom_landmark[1])**2)
 
-    projection_point_horizontal = project(np.asarray(eye_internal_landmark), np.asarray(eye_external_landmark), (detected_iris[:2]))
+    eye_relative_position = project(np.asarray(eye_internal_landmark), np.asarray(eye_external_landmark), (detected_iris[:2]), D, H)
 
-    d_internal = math.sqrt((eye_external_landmark[0]-projection_point_horizontal[0]) ** 2+(eye_external_landmark[1]-projection_point_horizontal[1])**2)
-    R_d = d_internal/D      #ratio of position (all versus the nose = 0, all the way out = 1)
-
-    projection_point_vertical = project((eye_bottom_landmark[0],eye_bottom_landmark[1]), (eye_top_landmark[0], eye_top_landmark[1]), (detected_iris[0], detected_iris[1]))
-    h_bottom = math.sqrt((eye_bottom_landmark[0]-projection_point_vertical[0]) ** 2+(eye_bottom_landmark[1]-projection_point_vertical[1])**2)
-    R_h = h_bottom/H        # ratio of position (all the way down = 0, all the way up = 1)
+    R_d = eye_relative_position[0]/D      #ratio of position (all versus the nose = 0, all the way out = 1)
+    R_h = eye_relative_position[1]/H        # ratio of position (all the way down = 0, all the way up = 1)
     return R_d, R_h
 
 
@@ -229,10 +225,18 @@ def head_yaw(face_landmarks):                       #rotation along the vertical
     left_to_centre = math.sqrt(((face_landmarks[36][0]-centre_point[0]) ** 2)+(face_landmarks[36][1]-centre_point[1])**2)
     return math.asin(left_to_centre/D)
 
-def project(line_point_1, line_point_2, point):
-    h1 = point-line_point_1
-    h2 = line_point_2-line_point_1
-    return line_point_1 + np.dot(h1, h2)/np.dot(h2, h2)*h2
+def project(line_point_1, line_point_2, point, D, H):
+    a = point-line_point_1
+    A = math.sqrt((line_point_1[0]-point[0])**2 +(line_point_1[1]-point[1])**2)
+    d = line_point_2-line_point_1
+    print(H)
+    print(D)
+    print(line_point_1, line_point_2, point)
+    cos_alpha = np.dot(a, d)/(D*A)
+    sin_alpha = np.sin(np.arccos(cos_alpha))
+    print(A)
+    print(cos_alpha)
+    return (A * cos_alpha, H/2 + A * sin_alpha)
 
 def line_intersection(line1, line2):
     xdiff = (line1[0][0] - line1[1][0], line2[0][0] - line2[1][0])
@@ -306,13 +310,13 @@ while True:
         m_r    = rescale(m_r.astype(np.uint8),5)
         c_right= fit_iris(right)
 
-        print('Roll angle: ')
-        print(head_roll(landmarks))
-        print('Yaw angle: ')
-        print(head_yaw(landmarks))
-        print('Pitch angle: ')
-        print(head_pitch(landmarks))
-
+        #print('Roll angle: ')
+        #print(head_roll(landmarks))
+        #print('Yaw angle: ')
+        #print(head_yaw(landmarks))
+        #print('Pitch angle: ')
+        #print(head_pitch(landmarks))
+        
         print(iris_position(landmarks, 0, c_left))
         #print(iris_position(landmarks, 1, c_right))
 
