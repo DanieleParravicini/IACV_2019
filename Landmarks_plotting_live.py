@@ -229,14 +229,9 @@ def project(line_point_1, line_point_2, point, D, H):
     a = point-line_point_1
     A = math.sqrt((line_point_1[0]-point[0])**2 +(line_point_1[1]-point[1])**2)
     d = line_point_2-line_point_1
-    print(H)
-    print(D)
-    print(line_point_1, line_point_2, point)
     cos_alpha = np.dot(a, d)/(D*A)
     sin_alpha = np.sin(np.arccos(cos_alpha))
-    print(A)
-    print(cos_alpha)
-    return (A * cos_alpha, H/2 + A * sin_alpha)
+    return (A * cos_alpha, H/2 - A * sin_alpha)
 
 def line_intersection(line1, line2):
     xdiff = (line1[0][0] - line1[1][0], line2[0][0] - line2[1][0])
@@ -317,8 +312,8 @@ while True:
         #print('Pitch angle: ')
         #print(head_pitch(landmarks))
         
-        print(iris_position(landmarks, 0, c_left))
-        #print(iris_position(landmarks, 1, c_right))
+        iris_pose_left = iris_position(landmarks, 0, (c_left[0]/5+landmarks[36][0], c_left[1]/5+landmarks[37][1])))
+        iris_pose_right= iris_position(landmarks, 1, (c_right[0]/5+landmarks[42][0], c_right[1]/5+landmarks[43][1])))
 
         #plot add 3rd channel to 
         new_left = np.zeros([left.shape[0], left.shape[1],3],np.uint8)
