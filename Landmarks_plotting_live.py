@@ -14,7 +14,7 @@ import matplotlib.pyplot as plt
 
 #surface 3 pro camera 0
 #surface 4 pro camera 1
-cap = cv2.VideoCapture(1)
+cap = cv2.VideoCapture(0)
 
 def exagon_padding(pts, padx, pady):
     pts[0,0]-=padx
@@ -50,19 +50,19 @@ def extract_polyline(img, poly_pts):
 
     return out, mask
 
-def segment_eyes(frame, eye_left_landmarks, eye_right_landmarks, square=False):
+def segment_eyes(frame, eye_left_landmarks, eye_right_landmarks, square=True):
 
     eye_left_pts    = np.array(list(map(lambda p: list(p.ravel()), eye_left_landmarks)))
     eye_right_pts   = np.array(list(map(lambda p: list(p.ravel()), eye_right_landmarks)))
 
     if square :
-        l,r,t,b = bounding_box(eye_left_pts, frame.shape[1], frame.shape[0],10,10)
+        l,r,t,b = bounding_box(eye_left_pts, frame.shape[1], frame.shape[0],0,10)
         #transfor exagon in a square
         left  = frame[t:b,l:r]
         mask  = np.ones_like(left)
         mask_l = mask.astype(np.bool)
 
-        l,r,t,b = bounding_box(eye_right_pts, frame.shape[1], frame.shape[0],10,10)
+        l,r,t,b = bounding_box(eye_right_pts, frame.shape[1], frame.shape[0],0,10)
         #transfor exagon in a square
         right  = frame[t:b,l:r]
         mask   = np.ones_like(right)
@@ -131,46 +131,118 @@ def fit_iris(img):
 def IPF_x(img,mask,x):
     return img[:,x].sum() /mask[:,x].sum()
 
+def VPF_x(img, mask,x, IPF):
+    return img[:,x].sum()/ mask[:,x].sum() - IPF[x]
+
 def IPF_y(img,mask,y):
     return img[y,:].sum() /mask[y,:].sum()
 
+def VPF_y(img, mask, y, IPF):
+    return img[y,:].sum() /mask[y,:].sum() - IPF[y]
+
+
 def fit_iris_with_IPF(img, mask):
-    
+    debug          = False
+    greatest_delta = True
+    th_factor      = 0.05
+    alpha          = 0.6
+    delta          = 1
     #print(img.shape, mask.shape)
     cv2.imshow('mask',mask*255)
+    cv2.imshow('eyes',img)
+    
+ 
+    IPF_values = list(map(lambda y  : IPF_y(img,mask,y)             , range(img.shape[0])))
+    VPF_values = list(map(lambda y, : VPF_y(img,mask,y, IPF_values) , range(img.shape[0])))
+    GPF_values = np.array(VPF_values) *np.float(alpha) - np.array(IPF_values) * np.float(1 - alpha) 
 
+    if greatest_delta:
+        IPF_delta  = (np.gradient(GPF_values,delta,axis=0))
 
-    IPF_values = list(map(lambda y: IPF_y(img,mask,y), range(img.shape[0])))
-    IPF_delta  = np.abs(np.gradient(IPF_values,axis=0))
+        #1 step derivative
+        #IPF_delta  = (list(map(lambda y,y_1: y_1-y, IPF_values[:-1], IPF_values[1:])))
+ 
+        t = sorted(enumerate(IPF_delta), key=lambda x: x[1], reverse=True)
+        first_y  = t[0][0]
+        second_y = t[-1][0]
 
-    '''plt.figure()
-    plt.plot(IPF_values,'r')
-    plt.plot(IPF_delta ,'g')
-    plt.show()'''
+    else:
+        threshold = (max(IPF_values)-min(IPF_values))* th_factor + min(IPF_values)
+        flag = True
+        first_y = 0
+        second_y = 0
+        for i in range(img.shape[0])  :
+ 
+            if(IPF_values[i]   < threshold and flag ):
+                flag = False
+                first_y = i
+            elif(IPF_values[i] > threshold and not flag):
+                second_y = i
+                break
 
-    t = sorted(enumerate(IPF_delta), key=lambda x: x[1], reverse=True)
-    first_x  = t[0][0]
-    second_x = t[2][0]
-    cv2.line(img, (first_x,0 ),(first_x,img.shape[0]) , 255)
-    cv2.line(img, (second_x,0),(second_x,img.shape[0]), 255)
+    ############
+    ############
+    ############
+    
+    IPF_values = list(map(lambda y  : IPF_x(img,mask,y)             , range(img.shape[1])))
+    VPF_values = list(map(lambda y, : VPF_x(img,mask,y, IPF_values) , range(img.shape[1])))
+    GPF_values = np.float(alpha) * np.array(VPF_values) - np.float(1 - alpha) * np.array(IPF_values)
 
-    IPF_values = list(map(lambda x: IPF_x(img,mask,x), range(img.shape[1])))
-    IPF_delta  = np.abs(np.gradient(IPF_values,axis=0))
+    if greatest_delta :
+        IPF_delta  = (np.gradient(GPF_values,delta,axis=0))
+ 
+        t = sorted(enumerate(IPF_delta), key=lambda x: x[1], reverse=True)
+        first_x  = t[0][0]
+        #t = list(filter(lambda e: (e[0]-first_x) > 0.1*img.shape[1] ,  t))
+        second_x = t[-1][0]
 
-    '''plt.figure()
-    plt.plot(IPF_values,'r')
-    plt.plot(IPF_delta ,'g')
-    plt.show()
-    '''
-    t = sorted(enumerate(IPF_delta), key=lambda x: x[1], reverse=True)
-    first_y  = t[0][0]
-    second_y = t[2][0]
-    cv2.line(img, (0,first_y) ,(img.shape[1],first_y) ,255)
-    cv2.line(img, (0,second_y),(img.shape[1],second_y),255)
-
-    cv2.imshow('eye',img )
+    else:
+        threshold = (max(IPF_values)-min(IPF_values))*th_factor + min(IPF_values)
+        flag = True
+ 
+        first_x=0
+        second_x=0
+ 
+        for i in range(img.shape[1]):
+            if(IPF_values[i] < threshold and flag ):
+                flag = False
+                first_x = i
+            elif(IPF_values[i] > threshold and not flag):
+                second_x = i
+                break
+ 
+    
+ 
+    if(debug):
+        points = np.zeros(img.shape[1])
+        points[first_x] = 255
+        points[second_x] = 255
+ 
+        fig,axs = plt.subplots(2)
+        axs[0].plot(IPF_values,'r')
+        
+        if greatest_delta:
+            axs[0].plot(IPF_delta ,'g')
+        else :
+            axs[0].plot([threshold for i in range(img.shape[1]) ])
+        axs[0].plot(points)
+        axs[1].imshow(img)
+        plt.show()
+ 
+        #PLOT
+        cv2.line(img, (first_x,0 ),(first_x,img.shape[0]) , 255)
+        cv2.line(img, (second_x,0),(second_x,img.shape[0]), 255)
+        cv2.line(img, (0,first_y) ,(img.shape[1],first_y) ,255)
+        cv2.line(img, (0,second_y),(img.shape[1],second_y),255)
+ 
+        cv2.imshow('eye',img )
+ 
+    x = (first_x+second_x)//2
+    y = (first_y+second_y)//2
+    r = np.abs(second_x-first_x)//2
+ 
     #return [x,y,r] of the most probable iris point
-    return None
+    return [x,y,r]
 
 def rescale(img, scale_percent):
     
@@ -180,7 +252,7 @@ def rescale(img, scale_percent):
     dimR = (width, height)
 
     # resize image
-    return cv2.resize(img, dimR, interpolation=cv2.INTER_AREA )
+    return cv2.resize(img, dimR, cv2.INTER_LINEAR) #.INTER_NEAREST)  #cv2.INTER_CUBIC )#interpolation=cv2.INTER_AREA )
 
 
 # eye_selector = 0 -> left eye eye_selector = 1 -> right eye
@@ -297,13 +369,14 @@ while True:
         (left, m_l),(right, m_r) = segment_eyes(gray, landmarks[36:42], landmarks[42:48])
 
         #detect iris:
-        left   = prep_fit_iris(left,5)
-        m_l    = rescale(m_l.astype(np.uint8),5)
-        c_left = fit_iris(left)
+        factor_magnification = 5
+        left   = prep_fit_iris(left,factor_magnification)
+        m_l    = rescale(m_l.astype(np.uint8),factor_magnification)
+        c_left = fit_iris_with_IPF(left, m_l)
 
-        right  = prep_fit_iris(right,5)
-        m_r    = rescale(m_r.astype(np.uint8),5)
-        c_right= fit_iris(right)
+        right  = prep_fit_iris(right,factor_magnification)
+        m_r    = rescale(m_r.astype(np.uint8),factor_magnification)
+        c_right= fit_iris_with_IPF(right, m_r)
 
         #print('Roll angle: ')
         #print(head_roll(landmarks))
@@ -311,9 +384,11 @@ while True:
         #print(head_yaw(landmarks))
         #print('Pitch angle: ')
         #print(head_pitch(landmarks))
-        
-        iris_pose_left = iris_position(landmarks, 0, (c_left[0]/5+landmarks[36][0], c_left[1]/5+landmarks[37][1]))
-        iris_pose_right= iris_position(landmarks, 1, (c_right[0]/5+landmarks[42][0], c_right[1]/5+landmarks[43][1]))
+        if( c_left is not None):
+            iris_pose_left = iris_position(landmarks, 0, (c_left[0]/5+landmarks[36][0], c_left[1]/5+landmarks[37][1]))
+
+        if( c_right is not None):
+            iris_pose_right= iris_position(landmarks, 1, (c_right[0]/5+landmarks[42][0], c_right[1]/5+landmarks[43][1]))
 
         #plot add 3rd channel to 
         new_left = np.zeros([left.shape[0], left.shape[1],3],np.uint8)
