@@ -188,6 +188,7 @@ def fit_iris_with_IPF(img, mask):
     VPF_values = list(map(lambda y, : VPF_x(img,mask,y, IPF_values) , range(img.shape[1])))
     GPF_values = np.float(alpha) * np.array(VPF_values) - np.float(1 - alpha) * np.array(IPF_values)
 
+
     if greatest_delta :
         IPF_delta  = (np.gradient(GPF_values,delta,axis=0))
  
@@ -195,6 +196,7 @@ def fit_iris_with_IPF(img, mask):
         first_x  = t[0][0]
         #t = list(filter(lambda e: (e[0]-first_x) > 0.1*img.shape[1] ,  t))
         second_x = t[-1][0]
+
 
     else:
         threshold = (max(IPF_values)-min(IPF_values))*th_factor + min(IPF_values)
@@ -255,16 +257,19 @@ def rescale(img, scale_percent):
     return cv2.resize(img, dimR, cv2.INTER_LINEAR) #.INTER_NEAREST)  #cv2.INTER_CUBIC )#interpolation=cv2.INTER_AREA )
 
 
+
 # eye_selector = 0 -> left eye eye_selector = 1 -> right eye
-def iris_position(face_landmarks, eye_selector, detected_iris):
+def iris_position(face_landmarks, eye_selector, detected_iris, img):
+    debug = False
+
     if(eye_selector == 0):
         eye_external_landmark = landmarks[36]
         eye_internal_landmark = landmarks[39]
         eye_top_landmark = landmarks[38]
         eye_bottom_landmark = landmarks[40]
     else:
-        eye_external_landmark = landmarks[45]
-        eye_internal_landmark = landmarks[42]
+        eye_external_landmark = landmarks[42]
+        eye_internal_landmark = landmarks[45]
         eye_top_landmark = landmarks[43]
         eye_bottom_landmark = landmarks[47]
 
@@ -273,7 +278,10 @@ def iris_position(face_landmarks, eye_selector, detected_iris):
 
     eye_relative_position = project(np.asarray(eye_internal_landmark), np.asarray(eye_external_landmark), (detected_iris[:2]), D, H)
 
-    R_d = eye_relative_position[0]/D      #ratio of position (all versus the nose = 0, all the way out = 1)
+    if(debug):
+        cv2.line(img, tuple(eye_internal_landmark.ravel()), tuple(np.asarray(eye_internal_landmark).ravel()), (0, 0, 255), thickness=3, lineType=8)
+
+    R_d = eye_relative_position[0]/D      #ratio of position (all to the left = 0, all the way to the right = 1)
     R_h = eye_relative_position[1]/H        # ratio of position (all the way down = 0, all the way up = 1)
     return R_d, R_h
 
@@ -384,11 +392,13 @@ while True:
         #print(head_yaw(landmarks))
         #print('Pitch angle: ')
         #print(head_pitch(landmarks))
-        if( c_left is not None):
-            iris_pose_left = iris_position(landmarks, 0, (c_left[0]/5+landmarks[36][0], c_left[1]/5+landmarks[37][1]))
 
-        if( c_right is not None):
-            iris_pose_right= iris_position(landmarks, 1, (c_right[0]/5+landmarks[42][0], c_right[1]/5+landmarks[43][1]))
+        if(c_left is not None):
+            iris_pose_left = iris_position(landmarks, 0, (c_left[0]/5+landmarks[36][0], c_left[1]/5+landmarks[37][1]), left)
+            print(iris_pose_left)
+        if(c_right is not None):
+            iris_pose_right= iris_position(landmarks, 1, (c_right[0]/5+landmarks[42][0], c_right[1]/5+landmarks[43][1]), right)
+            print(iris_pose_right)
 
         #plot add 3rd channel to 
         new_left = np.zeros([left.shape[0], left.shape[1],3],np.uint8)
