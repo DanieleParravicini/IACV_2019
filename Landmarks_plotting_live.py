@@ -143,10 +143,10 @@ def fit_iris_with_IPF(img, mask):
     IPF_values = list(map(lambda y: IPF_y(img,mask,y), range(img.shape[0])))
     IPF_delta  = np.abs(np.gradient(IPF_values,axis=0))
 
-    '''plt.figure()
+    plt.figure()
     plt.plot(IPF_values,'r')
     plt.plot(IPF_delta ,'g')
-    plt.show()'''
+    plt.show()
 
     t = sorted(enumerate(IPF_delta), key=lambda x: x[1], reverse=True)
     first_x  = t[0][0]
@@ -157,11 +157,11 @@ def fit_iris_with_IPF(img, mask):
     IPF_values = list(map(lambda x: IPF_x(img,mask,x), range(img.shape[1])))
     IPF_delta  = np.abs(np.gradient(IPF_values,axis=0))
 
-    '''plt.figure()
+    plt.figure()
     plt.plot(IPF_values,'r')
     plt.plot(IPF_delta ,'g')
     plt.show()
-    '''
+    
     t = sorted(enumerate(IPF_delta), key=lambda x: x[1], reverse=True)
     first_y  = t[0][0]
     second_y = t[2][0]
@@ -180,19 +180,20 @@ def rescale(img, scale_percent):
     dimR = (width, height)
 
     # resize image
-    return cv2.resize(img, dimR, interpolation=cv2.INTER_AREA )
-
+    return cv2.resize(img, dimR, interpolation=cv2.INTER_AREA)
 
 # eye_selector = 0 -> left eye eye_selector = 1 -> right eye
-def iris_position(face_landmarks, eye_selector, detected_iris):
+def iris_position(face_landmarks, eye_selector, detected_iris, img):
+    debug = False
+
     if(eye_selector == 0):
         eye_external_landmark = landmarks[36]
         eye_internal_landmark = landmarks[39]
         eye_top_landmark = landmarks[38]
         eye_bottom_landmark = landmarks[40]
     else:
-        eye_external_landmark = landmarks[45]
-        eye_internal_landmark = landmarks[42]
+        eye_external_landmark = landmarks[42]
+        eye_internal_landmark = landmarks[45]
         eye_top_landmark = landmarks[43]
         eye_bottom_landmark = landmarks[47]
 
@@ -201,7 +202,10 @@ def iris_position(face_landmarks, eye_selector, detected_iris):
 
     eye_relative_position = project(np.asarray(eye_internal_landmark), np.asarray(eye_external_landmark), (detected_iris[:2]), D, H)
 
-    R_d = eye_relative_position[0]/D      #ratio of position (all versus the nose = 0, all the way out = 1)
+    if(debug):
+        cv2.line(img, tuple(eye_internal_landmark.ravel()), tuple(np.asarray(eye_internal_landmark).ravel()), (0, 0, 255), thickness=3, lineType=8)
+
+    R_d = eye_relative_position[0]/D      #ratio of position (all to the left = 0, all the way to the right = 1)
     R_h = eye_relative_position[1]/H        # ratio of position (all the way down = 0, all the way up = 1)
     return R_d, R_h
 
@@ -311,9 +315,13 @@ while True:
         #print(head_yaw(landmarks))
         #print('Pitch angle: ')
         #print(head_pitch(landmarks))
-        
-        iris_pose_left = iris_position(landmarks, 0, (c_left[0]/5+landmarks[36][0], c_left[1]/5+landmarks[37][1]))
-        iris_pose_right= iris_position(landmarks, 1, (c_right[0]/5+landmarks[42][0], c_right[1]/5+landmarks[43][1]))
+
+        if(c_left is not None):
+            iris_pose_left = iris_position(landmarks, 0, (c_left[0]/5+landmarks[36][0], c_left[1]/5+landmarks[37][1]), left)
+            print(iris_pose_left)
+        if(c_right is not None):
+            iris_pose_right= iris_position(landmarks, 1, (c_right[0]/5+landmarks[42][0], c_right[1]/5+landmarks[43][1]), right)
+            print(iris_pose_right)
 
         #plot add 3rd channel to 
         new_left = np.zeros([left.shape[0], left.shape[1],3],np.uint8)
