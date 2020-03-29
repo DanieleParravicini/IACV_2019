@@ -14,7 +14,7 @@ import matplotlib.pyplot as plt
 
 #surface 3 pro camera 0
 #surface 4 pro camera 1
-cap = cv2.VideoCapture(0)
+cap = cv2.VideoCapture(1)
 
 def exagon_padding(pts, padx, pady):
     pts[0,0]-=padx
@@ -256,7 +256,11 @@ def rescale(img, scale_percent):
     # resize image
     return cv2.resize(img, dimR, cv2.INTER_LINEAR) #.INTER_NEAREST)  #cv2.INTER_CUBIC )#interpolation=cv2.INTER_AREA )
 
-
+def is_blinking(eye_top_landmark, eye_bottom_landmark, scale):
+    H = math.sqrt((eye_top_landmark[0]-eye_bottom_landmark[0])** 2+(eye_top_landmark[1]-eye_bottom_landmark[1])**2)/scale
+    print(H)
+    if(H<15):
+        return True
 
 # eye_selector = 0 -> left eye eye_selector = 1 -> right eye
 def iris_position(face_landmarks, eye_selector, detected_iris, img):
@@ -343,6 +347,7 @@ def stack(one,two):
     tmp[0:two.shape[0], one.shape[1]:one.shape[1]+two.shape[1],:] = two
     return tmp
 
+debug = False
 detector = dlib.get_frontal_face_detector()
 predictor = dlib.shape_predictor("shape_predictor_68_face_landmarks.dat")
 
@@ -350,7 +355,7 @@ fourcc = cv2.VideoWriter_fourcc('X', 'V', 'I', 'D')
 out_width  = 600
 out_height = 200
 out = cv2.VideoWriter("output.avi", fourcc, 10.0, (out_width, out_height))
-
+head_hight = 0
 
 while True:
     _, frame = cap.read()
@@ -373,7 +378,8 @@ while True:
         cv2.line(frame, (int(extra_point_x), int(extra_point_y)), tuple(landmarks[57].ravel()), (255, 0, 0), thickness=3, lineType=8)
         #fit eyes
         #left 37-42 right 43-48
-
+        head_hight = math.sqrt((extra_point_x-landmarks[57][0]) ** 2+(extra_point_y-landmarks[57][1])**2)
+        head_scale = head_hight/330  #emirical value
         (left, m_l),(right, m_r) = segment_eyes(gray, landmarks[36:42], landmarks[42:48])
 
         #detect iris:
@@ -393,29 +399,41 @@ while True:
         #print('Pitch angle: ')
         #print(head_pitch(landmarks))
 
-        if(c_left is not None):
-            iris_pose_left = iris_position(landmarks, 0, (c_left[0]/5+landmarks[36][0], c_left[1]/5+landmarks[37][1]), left)
-            print(iris_pose_left)
-        if(c_right is not None):
-            iris_pose_right= iris_position(landmarks, 1, (c_right[0]/5+landmarks[42][0], c_right[1]/5+landmarks[43][1]), right)
-            print(iris_pose_right)
+        #plot add 3rd channel to
+        new_left = np.zeros([left.shape[0], left.shape[1], 3], np.uint8)
+        new_left[:, :, 1] = left
+        new_right = np.zeros([right.shape[0], right.shape[1], 3], np.uint8)
+        new_right[:, :, 1] = right
+        left_blink = is_blinking(landmarks[38], landmarks[40], head_scale)
+        right_blink = is_blinking(landmarks[43], landmarks[47], head_scale)
 
-        #plot add 3rd channel to 
-        new_left = np.zeros([left.shape[0], left.shape[1],3],np.uint8)
-        new_left[:,:,1] = left
-        new_right = np.zeros([right.shape[0], right.shape[1],3], np.uint8)
-        new_right[:,:,1] = right
+        if(debug):
+            print(left_blink)
+            print(right_blink)
 
         if(c_left is not None):
-            cv2.circle(new_left,(c_left[0],c_left[1]),c_left[2],(255,0,0),1)
-            cv2.circle(new_left,(c_left[0],c_left[1]),2,(0,0,255),2)
+            if(left_blink != True):
+                cv2.circle(new_left,(c_left[0],c_left[1]),c_left[2],(255,0,0),1)
+                cv2.circle(new_left,(c_left[0],c_left[1]),2,(0,0,255),2)
+                iris_pose_left = iris_position(landmarks, 0, (c_left[0]/factor_magnification+landmarks[36][0], c_left[1]/factor_magnification+landmarks[37][1]), left)
+                print(iris_pose_left)
+            
         if(c_right is not None):
-            cv2.circle(new_right,(c_right[0],c_right[1]),c_right[2],(255,0,0),1)
-            cv2.circle(new_right,(c_right[0],c_right[1]),2,(0,0,255),2)
-        
+            if(right_blink != True):
+                cv2.circle(new_right,(c_right[0],c_right[1]),c_right[2],(255,0,0),1)
+                cv2.circle(new_right,(c_right[0],c_right[1]),2,(0,0,255),2)
+                iris_pose_right= iris_position(landmarks, 1, (c_right[0]/factor_magnification+landmarks[42][0], c_right[1]/factor_magnification+landmarks[43][1]), right)
+                print(iris_pose_right)
+         
         frame_out = stack(new_left,new_right)
+
         cv2.imshow('detected circles',frame_out )
         
+        if(right_blink and left_blink):
+            print("Blink detected!")
+        elif(right_blink or left_blink):
+            print("Wink detected!")
+
         frame_out = cv2.resize(frame_out, (out_width, out_height))
         out.write(frame_out)
 
