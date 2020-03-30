@@ -140,7 +140,6 @@ def IPF_y(img,mask,y):
 def VPF_y(img, mask, y, IPF):
     return img[y,:].sum() /mask[y,:].sum() - IPF[y]
 
-
 def fit_iris_with_IPF(img, mask):
     debug          = False
     greatest_delta = True
@@ -258,13 +257,11 @@ def rescale(img, scale_percent):
 
 def is_blinking(eye_top_landmark, eye_bottom_landmark, scale):
     H = math.sqrt((eye_top_landmark[0]-eye_bottom_landmark[0])** 2+(eye_top_landmark[1]-eye_bottom_landmark[1])**2)/scale
-    print(H)
-    if(H<15):
+    if(H<16):
         return True
 
-# eye_selector = 0 -> left eye eye_selector = 1 -> right eye
 def iris_position(face_landmarks, eye_selector, detected_iris, img):
-    debug = False
+    debug = False                                                   # eye_selector = 0 -> left eye eye_selector = 1 -> right eye
 
     if(eye_selector == 0):
         eye_external_landmark = landmarks[36]
@@ -289,10 +286,9 @@ def iris_position(face_landmarks, eye_selector, detected_iris, img):
     R_h = eye_relative_position[1]/H        # ratio of position (all the way down = 0, all the way up = 1)
     return R_d, R_h
 
-
 def head_roll(face_landmarks):                      #rotation along the axis perpendicular to the plane
     D = math.sqrt((landmarks[36][0]-landmarks[45][0])** 2+(landmarks[36][1]-landmarks[45][1])**2)
-    return math.asin((landmarks[45][1]-landmarks[36][1])/D)
+    return math.asin((landmarks[45][1]-landmarks[36][1])/D)*180/math.pi
 
 def head_pitch(face_landmarks):                     # rotation along the orizontal axis TO BE CALIBRATED
     extra_point_x = face_landmarks[21][0]+(face_landmarks[22][0]-face_landmarks[21][0])/2
@@ -301,20 +297,20 @@ def head_pitch(face_landmarks):                     # rotation along the orizont
     D = math.sqrt((extra_point_x-face_landmarks[57][0])** 2+(extra_point_y - face_landmarks[57][1])**2)
     centre_point = line_intersection((face_landmarks[36], face_landmarks[45]), ((extra_point_x, extra_point_y), face_landmarks[57]))
     bottom_to_centre = math.sqrt(((face_landmarks[57][0]-centre_point[0]) ** 2)+(face_landmarks[57][1]-centre_point[1])**2)
-    return math.asin(bottom_to_centre/D)
+    return 47-math.asin(bottom_to_centre/D)*180/math.pi
 
 def head_yaw(face_landmarks):                       #rotation along the vertical axis TO BE CALIBRATED
     D = math.sqrt((face_landmarks[36][0]-face_landmarks[45][0])** 2+(face_landmarks[36][1]-face_landmarks[45][1])**2)
     centre_point = line_intersection((face_landmarks[36], face_landmarks[45]), (face_landmarks[27], face_landmarks[57]))
     left_to_centre = math.sqrt(((face_landmarks[36][0]-centre_point[0]) ** 2)+(face_landmarks[36][1]-centre_point[1])**2)
-    return math.asin(left_to_centre/D)
+    return math.asin(left_to_centre/D)*180/math.pi-30
 
 def project(line_point_1, line_point_2, point, D, H):
     a = point-line_point_1
     A = math.sqrt((line_point_1[0]-point[0])**2 +(line_point_1[1]-point[1])**2)
     d = line_point_2-line_point_1
     cos_alpha = np.dot(a, d)/(D*A)
-    sin_alpha = np.sin(np.arccos(cos_alpha))
+    sin_alpha = math.sqrt(1-cos_alpha**2)
     return (A * cos_alpha, H/2 - A * sin_alpha)
 
 def line_intersection(line1, line2):
@@ -378,8 +374,16 @@ while True:
         cv2.line(frame, (int(extra_point_x), int(extra_point_y)), tuple(landmarks[57].ravel()), (255, 0, 0), thickness=3, lineType=8)
         #fit eyes
         #left 37-42 right 43-48
-        head_hight = math.sqrt((extra_point_x-landmarks[57][0]) ** 2+(extra_point_y-landmarks[57][1])**2)
-        head_scale = head_hight/330  #emirical value
+
+        if(debug):
+            if(math.sqrt((landmarks[27][0]-landmarks[30][0]) ** 2+(landmarks[27][1]-landmarks[30][1])**2) > head_hight):
+                print("__________________________________________________________________________")
+                print(math.sqrt((landmarks[27][0]-landmarks[30][0])** 2+(landmarks[27][1]-landmarks[30][1])**2))
+                print("__________________________________________________________________________")
+        
+        head_hight = math.sqrt((landmarks[27][0]-landmarks[33][0]) ** 2+(landmarks[27][1]-landmarks[33][1])**2)
+        head_scale = head_hight/180  #emirical value
+        
         (left, m_l),(right, m_r) = segment_eyes(gray, landmarks[36:42], landmarks[42:48])
 
         #detect iris:
@@ -392,12 +396,12 @@ while True:
         m_r    = rescale(m_r.astype(np.uint8),factor_magnification)
         c_right= fit_iris_with_IPF(right, m_r)
 
-        #print('Roll angle: ')
-        #print(head_roll(landmarks))
-        #print('Yaw angle: ')
-        #print(head_yaw(landmarks))
-        #print('Pitch angle: ')
-        #print(head_pitch(landmarks))
+        print('Roll angle: ')
+        print(head_roll(landmarks))
+        print('Yaw angle: ')
+        print(head_yaw(landmarks))
+        print('Pitch angle: ')
+        print(head_pitch(landmarks))
 
         #plot add 3rd channel to
         new_left = np.zeros([left.shape[0], left.shape[1], 3], np.uint8)
@@ -416,19 +420,21 @@ while True:
                 cv2.circle(new_left,(c_left[0],c_left[1]),c_left[2],(255,0,0),1)
                 cv2.circle(new_left,(c_left[0],c_left[1]),2,(0,0,255),2)
                 iris_pose_left = iris_position(landmarks, 0, (c_left[0]/factor_magnification+landmarks[36][0], c_left[1]/factor_magnification+landmarks[37][1]), left)
-                print(iris_pose_left)
+                #print(iris_pose_left)
             
         if(c_right is not None):
             if(right_blink != True):
                 cv2.circle(new_right,(c_right[0],c_right[1]),c_right[2],(255,0,0),1)
                 cv2.circle(new_right,(c_right[0],c_right[1]),2,(0,0,255),2)
                 iris_pose_right= iris_position(landmarks, 1, (c_right[0]/factor_magnification+landmarks[42][0], c_right[1]/factor_magnification+landmarks[43][1]), right)
-                print(iris_pose_right)
+                #print(iris_pose_right)
          
         frame_out = stack(new_left,new_right)
 
         cv2.imshow('detected circles',frame_out )
-        
+        print("________________________________")
+        print(left_blink)
+        print(right_blink)
         if(right_blink and left_blink):
             print("Blink detected!")
         elif(right_blink or left_blink):
