@@ -279,9 +279,6 @@ def iris_position(face_landmarks, eye_selector, detected_iris, img):
 
     eye_relative_position = project(np.asarray(eye_internal_landmark), np.asarray(eye_external_landmark), (detected_iris[:2]), D, H)
 
-    if(debug):
-        cv2.line(img, tuple(eye_internal_landmark.ravel()), tuple(np.asarray(eye_internal_landmark).ravel()), (0, 0, 255), thickness=3, lineType=8)
-
     R_d = eye_relative_position[0]/D      #ratio of position (all to the left = 0, all the way to the right = 1)
     R_h = eye_relative_position[1]/H        # ratio of position (all the way down = 0, all the way up = 1)
     return R_d, R_h
@@ -396,13 +393,6 @@ while True:
         m_r    = rescale(m_r.astype(np.uint8),factor_magnification)
         c_right= fit_iris_with_IPF(right, m_r)
 
-        print('Roll angle: ')
-        print(head_roll(landmarks))
-        print('Yaw angle: ')
-        print(head_yaw(landmarks))
-        print('Pitch angle: ')
-        print(head_pitch(landmarks))
-
         #plot add 3rd channel to
         new_left = np.zeros([left.shape[0], left.shape[1], 3], np.uint8)
         new_left[:, :, 1] = left
@@ -411,30 +401,37 @@ while True:
         left_blink = is_blinking(landmarks[38], landmarks[40], head_scale)
         right_blink = is_blinking(landmarks[43], landmarks[47], head_scale)
 
+        absolute_left_iris = [c_left[0]/factor_magnification+landmarks[36][0], c_left[1]/factor_magnification+landmarks[37][1]]
+        cv2.circle(frame, (absolute_left_iris[0].ravel(), absolute_left_iris[1].ravel()) , 3, (0, 120, 135), -1)
         if(debug):
+            print('Roll angle: ')
+            print(head_roll(landmarks))
+            print('Yaw angle: ')
+            print(head_yaw(landmarks))
+            print('Pitch angle: ')
+            print(head_pitch(landmarks))
+            print('Left Blink: ')
             print(left_blink)
+            print('Right Blink: ')
             print(right_blink)
 
         if(c_left is not None):
             if(left_blink != True):
                 cv2.circle(new_left,(c_left[0],c_left[1]),c_left[2],(255,0,0),1)
                 cv2.circle(new_left,(c_left[0],c_left[1]),2,(0,0,255),2)
-                iris_pose_left = iris_position(landmarks, 0, (c_left[0]/factor_magnification+landmarks[36][0], c_left[1]/factor_magnification+landmarks[37][1]), left)
-                #print(iris_pose_left)
+                iris_pose_left = iris_position(landmarks, 0, absolute_left_iris, left)
+                print(iris_pose_left)
             
         if(c_right is not None):
             if(right_blink != True):
                 cv2.circle(new_right,(c_right[0],c_right[1]),c_right[2],(255,0,0),1)
                 cv2.circle(new_right,(c_right[0],c_right[1]),2,(0,0,255),2)
                 iris_pose_right= iris_position(landmarks, 1, (c_right[0]/factor_magnification+landmarks[42][0], c_right[1]/factor_magnification+landmarks[43][1]), right)
-                #print(iris_pose_right)
+                print(iris_pose_right)
          
         frame_out = stack(new_left,new_right)
+        cv2.imshow('Detected circles',frame_out )
 
-        cv2.imshow('detected circles',frame_out )
-        print("________________________________")
-        print(left_blink)
-        print(right_blink)
         if(right_blink and left_blink):
             print("Blink detected!")
         elif(right_blink or left_blink):
