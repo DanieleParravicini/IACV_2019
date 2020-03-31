@@ -87,11 +87,11 @@ def fit_iris(img):
     debug = True
 
     rows = img.shape[0]
-    circles   = cv2.HoughCircles(np.uint8(img),cv2.HOUGH_GRADIENT,1,rows//10, param1=70, param2=28, minRadius=rows//8, maxRadius=rows//2)
-
+    circles   = cv2.HoughCircles(np.uint8(img),cv2.HOUGH_GRADIENT,1,rows//10, param1=40, param2=24, minRadius=rows//8, maxRadius=rows//2)
+    
     if circles is None :
         return
-
+        
     new_tmp = np.zeros([img.shape[0], img.shape[1],3], np.uint8)
     new_tmp[:,:,1] = img
 
@@ -115,7 +115,7 @@ def fit_iris(img):
             #draw the center of the circle
             cv2.circle(new_tmp,(x,y),2,(0,0,255),2)
             #and average pixel value
-            cv2.putText(new_tmp,str(i),(x,y),cv2.FONT_HERSHEY_SIMPLEX, 0.6, 255)
+            cv2.putText(new_tmp,str(i)+':'+str(v),(x,y),cv2.FONT_HERSHEY_SIMPLEX, 0.6, 255)
 
     #sort depending on the average value 
     t = sorted(m.items(), key=lambda x: x[1])
@@ -132,17 +132,17 @@ def IPF_x(img,mask,x):
     return img[:,x].sum() /mask[:,x].sum()
 
 def VPF_x(img, mask,x, IPF):
-    return img[:,x].sum()/ mask[:,x].sum() - IPF[x]
+    return np.abs(img[:,x].sum() - IPF[x])/ mask[:,x].sum() 
 
 def IPF_y(img,mask,y):
     return img[y,:].sum() /mask[y,:].sum()
 
 def VPF_y(img, mask, y, IPF):
-    return img[y,:].sum() /mask[y,:].sum() - IPF[y]
+    return np.abs(img[y,:].sum() - IPF[y]) /mask[y,:].sum() 
 
 
 def fit_iris_with_IPF(img, mask):
-    debug          = False
+    debug          = True
     greatest_delta = True
     th_factor      = 0.05
     alpha          = 0.6
@@ -260,7 +260,7 @@ def rescale(img, scale_percent):
 
 # eye_selector = 0 -> left eye eye_selector = 1 -> right eye
 def iris_position(face_landmarks, eye_selector, detected_iris, img):
-    debug = False
+    debug = True
 
     if(eye_selector == 0):
         eye_external_landmark = landmarks[36]
@@ -282,7 +282,7 @@ def iris_position(face_landmarks, eye_selector, detected_iris, img):
         cv2.line(img, tuple(eye_internal_landmark.ravel()), tuple(np.asarray(eye_internal_landmark).ravel()), (0, 0, 255), thickness=3, lineType=8)
 
     R_d = eye_relative_position[0]/D      #ratio of position (all to the left = 0, all the way to the right = 1)
-    R_h = eye_relative_position[1]/H        # ratio of position (all the way down = 0, all the way up = 1)
+    R_h = eye_relative_position[1]/H      # ratio of position (all the way down = 0, all the way up = 1)
     return R_d, R_h
 
 
@@ -311,6 +311,7 @@ def project(line_point_1, line_point_2, point, D, H):
     d = line_point_2-line_point_1
     cos_alpha = np.dot(a, d)/(D*A)
     sin_alpha = np.sin(np.arccos(cos_alpha))
+    
     return (A * cos_alpha, H/2 - A * sin_alpha)
 
 def line_intersection(line1, line2):
@@ -393,12 +394,25 @@ while True:
         #print('Pitch angle: ')
         #print(head_pitch(landmarks))
 
+        left_illustration  = np.zeros((200,200,3))
+        right_illustration = np.zeros((200,200,3)) 
         if(c_left is not None):
             iris_pose_left = iris_position(landmarks, 0, (c_left[0]/5+landmarks[36][0], c_left[1]/5+landmarks[37][1]), left)
-            print(iris_pose_left)
+            #print(iris_pose_left)
+            p = (int(iris_pose_left[0]*left_illustration.shape[1]), int(iris_pose_left[1]*left_illustration.shape[0]) )
+            r = left_illustration.shape[1]//4
+            cv2.circle(left_illustration, p , r ,(255,0,0), 1)
+
         if(c_right is not None):
             iris_pose_right= iris_position(landmarks, 1, (c_right[0]/5+landmarks[42][0], c_right[1]/5+landmarks[43][1]), right)
-            print(iris_pose_right)
+            #print(iris_pose_right)
+            p = (int(iris_pose_right[0]*right_illustration.shape[1]), int(iris_pose_right[1]*right_illustration.shape[0]))
+            r = right_illustration.shape[1]//4
+            cv2.circle(right_illustration, p , r , (255,0,0), 1)
+
+        frame_illustration =  stack(left_illustration,right_illustration)
+        cv2.imshow('position',frame_illustration )
+        
 
         #plot add 3rd channel to 
         new_left = np.zeros([left.shape[0], left.shape[1],3],np.uint8)
@@ -414,7 +428,7 @@ while True:
             cv2.circle(new_right,(c_right[0],c_right[1]),2,(0,0,255),2)
         
         frame_out = stack(new_left,new_right)
-        cv2.imshow('detected circles',frame_out )
+        cv2.imshow('detected circles 1',frame_out )
         
         frame_out = cv2.resize(frame_out, (out_width, out_height))
         out.write(frame_out)
