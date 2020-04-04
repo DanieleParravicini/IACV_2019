@@ -10,8 +10,8 @@ import dlib
 import numpy as np
 import matplotlib
 import matplotlib.pyplot as plt
-import gaze_estimation
-from head import head_roll
+
+from head import head_roll, project
 from Rotator import Rotator
 
 
@@ -94,7 +94,7 @@ def segment_eye(frame, eye_landmarks, square):
     2. mask which pixel has to be considered
     3. top,left coordinates w.r.t. original image
     """
-    padx, pady = (0,0)
+    padx, pady = (0,-1)
     eye_pts    = np.array(list(map(lambda p: list(p.ravel()), eye_landmarks)))
 
 
@@ -117,6 +117,12 @@ def segment_eye(frame, eye_landmarks, square):
 
     return eye, mask, (t,l)
 
+def get_left_eye_landmarks(face_landmarks):
+    return face_landmarks[36:42]
+
+def get_right_eye_landmarks(face_landmarks):
+    return face_landmarks[42:48]
+
 def segment_eyes(frame,face_landmarks, square=True):
     """
     Function that returns the image part related to eyes. 
@@ -125,9 +131,12 @@ def segment_eyes(frame,face_landmarks, square=True):
     -  square : choose whether image has to return a valid image 
        subset which has to be either a square or an exagon
     """
-
-    eye_left_landmarks  =  face_landmarks[36:42]
-    eye_right_landmarks =  face_landmarks[42:48]
+    #fit eyes
+    #landmarks for the eyes are
+    # - left 37-42
+    # - right 43-48
+    eye_left_landmarks  =  get_left_eye_landmarks(face_landmarks)
+    eye_right_landmarks =  get_right_eye_landmarks(face_landmarks)
 
     return segment_eye(frame, eye_left_landmarks, square) , segment_eye(frame, eye_right_landmarks, square)
 
@@ -135,7 +144,16 @@ def prep_fit_iris(img, rscale_factor=5):
     
     img     = cv2.equalizeHist(img)
     img     = rescale(img, rscale_factor)
-    img     = cv2.GaussianBlur(img,(3,3),1)
+
+    if(rscale_factor > 1):
+    
+        a       = img.shape[0] //16
+        a       = max(5,a)
+        a       = a+1 if a % 2 == 0 else a
+
+        img     = cv2.GaussianBlur(img,(a,a),1)
+        #img     = cv2.medianBlur(img,a,1)
+
     return img
 
 def fit_iris_with_HoughT(img, mask):
@@ -218,6 +236,7 @@ def VPF_x(img, mask,x, IPF):
     #To handle them multiply corresponding values with their mask 
     # value, if they're valid a 1*v would leave the value unchanged 
     # if they're invalid a 0*v would ignore that value.
+    #delta = (np.square(img[:,x] - IPF[x]))
     delta = (np.abs(img[:,x] - IPF[x]))
     delta = delta*np.transpose(mask[:,x]) 
 
@@ -235,14 +254,21 @@ def VPF_y(img, mask, y, IPF):
     #To handle them multiply corresponding values with their mask 
     # value, if they're valid a 1*v would leave the value unchanged 
     # if they're invalid a 0*v would ignore that value.
+    #delta = (np.square(img[y,:] - IPF[y]))
     delta = (np.abs(img[y,:] - IPF[y]))
     delta = delta*np.transpose(mask[y,:]) 
     return (delta).sum() / mask[y,:].sum() 
 
 def HPF_boundaries(img,GPF_values, greatest_delta, th_factor, delta, debug):
+
+    vertical = (img.shape[0] == len(GPF_values))
+    
     if debug:
-        _,axs = plt.subplots(3)
-        plt.gca().set_aspect('equal', adjustable='box')
+
+        gs_kw  = dict(width_ratios=[1], height_ratios=[1,1, img.shape[1]/img.shape[0] if vertical else 1 ])
+        _, axs = plt.subplots(ncols=1, nrows=3, constrained_layout=True,  gridspec_kw=gs_kw)
+        
+        #plt.gca().set_aspect('equal', adjustable='box')
         axs[0].plot(GPF_values,'r')
 
     #obtain 
@@ -285,7 +311,7 @@ def HPF_boundaries(img,GPF_values, greatest_delta, th_factor, delta, debug):
         axs[1].axvline(second)
         #if height is equal to the length of GPF values it means
         #that we are considering that dimension
-        if(img.shape[0] == len(GPF_values)):
+        if vertical:
             axs[2].imshow(np.transpose(img), aspect='auto')
         else :
             axs[2].imshow(img, aspect='auto')
@@ -304,7 +330,7 @@ def fit_iris_with_HPF(img, mask):
     y - eye centre position on y axis
     r - eye radius estimation
     """
-    debug          = True
+    debug          = False
     #select which method to use: 
     # True: selects the two points with highest positive and negative derivative
     # False: selects the two points based on threshold on (value_max-value_min)*th_factor+value_min
@@ -372,61 +398,92 @@ def rescale(img, scale_percent):
 
 
 
-def iris_position(frame, face_landmarks):
+def irides_position(frame, face_landmarks):
     """
     Receives a frame in grayscale and some face landmarks of a person in the image
     and extract iris positions
+
+
     """	
+    debug               = True
     use_HPF 			= True
+    square              = True
 
     roll_angle      	= head_roll(face_landmarks)
+
     image_center    	= tuple(np.array(frame.shape[1::-1]) / 2)
     rot             	= Rotator(image_center,roll_angle)
     rotated_frame   	= rot.transform(frame)
     rotated_landmarks 	= rot.transform_point(face_landmarks)
-    #fit eyes
-    #landmarks for the eyes are
-    # - left 37-42
-    # - right 43-48
-    (left, mask_left, (top_left,left_left)),(right, mask_right, (top_right, left_right)) = segment_eyes(frame, rotated_landmarks)
+    
+    
+    (left, mask_left, (top_left,left_left)),(right, mask_right, (top_right, left_right)) = segment_eyes(rotated_frame, rotated_landmarks, square)
     
     # detect iris based on Hough Transform fail to recognize iris with 
-    # small images
-    factor_magnification = 5
-
-    left   			= prep_fit_iris(left,factor_magnification)
-    mask_left    	= rescale(mask_left.astype(np.uint8),factor_magnification)
-    if (use_HPF):
-        c_left = fit_iris_with_HPF(left, mask_left)
+    # small images require a resize but HPF performs better without resize
+    factor_magnification = 5 if not use_HPF else 1
+    
+    is_left_closed, is_right_closed = are_eyes_closed(face_landmarks, factor_magnification)
+    
+    if is_left_closed:
+        c_left = None
     else:
-        c_left = fit_iris_with_HoughT(left,mask_left)
+        left   			= prep_fit_iris(left,factor_magnification)
+        mask_left    	= rescale(mask_left.astype(np.uint8),factor_magnification)
+        if (use_HPF):
+            c_left = fit_iris_with_HPF(left, mask_left)
+        else:
+            c_left = fit_iris_with_HoughT(left,mask_left)
 
-    right  = prep_fit_iris(right,factor_magnification)
-    mask_right    = rescale(mask_right.astype(np.uint8),factor_magnification)
-    if (use_HPF):
-        c_right = fit_iris_with_HPF(right, mask_right)
+    if is_right_closed: 
+        c_right = None
     else:
-        c_right = fit_iris_with_HoughT(left,mask_right)
+        right         = prep_fit_iris(right,factor_magnification)
+        mask_right    = rescale(mask_right.astype(np.uint8),factor_magnification)
+        if (use_HPF):
+            c_right = fit_iris_with_HPF(right, mask_right)
+        else:
+            c_right = fit_iris_with_HoughT(left,mask_right)
 
     
-    # missing part projection
+
 
     #At this point c_left and c_right are x,y coordinate referring 
     #to the subimage reference system
     #Moreover they have to be rescaled according yo factor_magnification
     if(c_left is not None):
+        if debug :
+            cv2.circle(left,tuple(c_left[:2]),c_left[2],(255,0,0),1)
+
         c_left[0] = c_left[0]/factor_magnification  + left_left
         c_left[1] = c_left[1]/factor_magnification  + top_left
         c_left[2] = c_left[2]/factor_magnification
 
         c_left = np.array(c_left)
 
+    #Note we have to recall irdes_position_relative_to_eye_extreme here
+    #because c_left,c_right have to be expressed w.r.t. to the entire image
+    # and to keep simple the computations we operate with a rotated image
+  
+    iris_rel_left, iris_rel_right = irdes_position_relative_to_eye_extreme(face_landmarks, (c_left,c_right))
+
     if(c_right is not None):
+        if debug :
+            cv2.circle(right,tuple(c_right[:2]),c_right[2],(255,0,0),1)
+
         c_right[0] = c_right[0]/factor_magnification  + left_right
         c_right[1] = c_right[1]/factor_magnification  + top_right
         c_right[2] = c_right[2]/factor_magnification
 
         c_right = np.array(c_right)
+
+    
+    if debug and 0 not in left.shape and 0 not in right.shape :
+        left  = cv2.resize(left,  (400,200))
+        right = cv2.resize(right, (400,200)) 
+        frame_illustration =  stack(left,right)
+        cv2.imshow('position',frame_illustration )
+
 
     #Since we have rotated the image we have to rotate back the point
 
@@ -436,9 +493,94 @@ def iris_position(frame, face_landmarks):
     if(c_right is not None):
         c_right[:2]  = rot.reverse_transform_point(np.array([c_right[:2]]))		
 
-    return c_left,c_right
+    return c_left, c_right , iris_rel_left, iris_rel_right
     
+def stack(one,two):
+    tmp = np.zeros([max(one.shape[0],two.shape[0]), max(one.shape[1],two.shape[1])*2], np.uint8)
+    tmp[0:one.shape[0], 0:one.shape[1]] = one
+    tmp[0:two.shape[0], one.shape[1]:one.shape[1]+two.shape[1]] = two
+    return tmp
+
+
+def are_eyes_closed(face_landmarks, scale):
+    left_eye_landmarks  = get_left_eye_landmarks(face_landmarks)
+    right_eye_landmarks = get_right_eye_landmarks(face_landmarks)
+
+    return is_eye_closed(left_eye_landmarks,scale), is_eye_closed(right_eye_landmarks,scale)
     
+def is_eye_closed(eye_landmarks, scale):
+    
+    eye_centre_landmark     = eye_landmarks[2]
+    eye_top_landmark        = eye_landmarks[4]
+
+    #H = math.sqrt((eye_top_landmark[0]-eye_centre_landmark[0])** 2+(eye_top_landmark[1]-eye_centre_landmark[1])**2)/scale
+    H = np.abs((eye_top_landmark[1]-eye_centre_landmark[1]))/scale
+    print(H)
+    if(H<=6):
+        return True
+
+def irdes_position_relative_to_eye_extreme(face_landmarks, irides_position):
+    left_eye_landmarks  = get_left_eye_landmarks(face_landmarks)
+    right_eye_landmarks = get_right_eye_landmarks(face_landmarks)
+
+    left_relative_position  = iris_position_relative_to_eye_extreme(left_eye_landmarks, irides_position[0]) if irides_position[0] is not None else None
+    right_relative_position = iris_position_relative_to_eye_extreme(right_eye_landmarks,irides_position[1]) if irides_position[1] is not None else None
+
+    return left_relative_position, right_relative_position
+    
+
+def iris_position_relative_to_eye_extreme(eye_landmarks, iris_position):
+
+    """
+
+    if(eye_selector == 0):
+        eye_external_landmark   = face_landmarks[36] = eye_landmarks[0]
+        eye_internal_landmark   = face_landmarks[39] = eye_landmarks[3]
+        eye_top_landmark        = face_landmarks[38] = eye_landmarks[2]
+        eye_bottom_landmark     = face_landmarks[40] = eye_landmarks[4]
+    else:
+        eye_external_landmark   = face_landmarks[42]
+        eye_internal_landmark   = face_landmarks[45]
+        eye_top_landmark        = face_landmarks[43]
+        eye_bottom_landmark     = face_landmarks[47]
+        Non ho bene in mente il processo con il quale andiamo ad estrarre la %x,%y 
+        ma se diciamo il 60 % sulla x in tutte due gli occhi 
+        (------x---)  (------x---) 
+        e non 
+        (------x---)  (---x------)
+        giusto?
+    """
+
+    eye_external_landmark   = eye_landmarks[0]
+    eye_internal_landmark   = eye_landmarks[3]
+    eye_top_landmark        = eye_landmarks[2]
+    eye_bottom_landmark     = eye_landmarks[4]
+
+    """
+
+    D = math.sqrt((eye_external_landmark[0]-eye_internal_landmark[0])** 2+(eye_external_landmark[1]-eye_internal_landmark[1])**2)
+    H = math.sqrt((eye_top_landmark[0]-eye_bottom_landmark[0])** 2+(eye_top_landmark[1]-eye_bottom_landmark[1])**2)
+
+    eye_relative_position = project(np.asarray(eye_internal_landmark), np.asarray(eye_external_landmark), (iris_position[:2]), D, H)
+
+    R_d = eye_relative_position[0]/D      #ratio of position (all to the left = 0, all the way to the right = 1)
+    R_h = eye_relative_position[1]/H      # ratio of position (all the way down = 0, all the way up = 1)"""
+    iris_position = np.array(iris_position[:2])
+    
+    eye_centre    = np.array([0,0])
+    eye_centre[0] = (eye_external_landmark[0]   + eye_internal_landmark[0]  )/2
+    eye_centre[1] = (eye_top_landmark[1]        + eye_bottom_landmark[1]    )/2
+
+    eye_dimension    = np.array([0,0])
+    eye_dimension[0] = np.abs(eye_external_landmark[0]   - eye_internal_landmark[0])
+    eye_dimension[1] = np.abs(eye_top_landmark[1]        - eye_bottom_landmark[1]  )
+    
+
+    ratio_posit   = (iris_position[:2] - eye_centre) /eye_dimension
+
+    
+    return ratio_posit
+
     
 if __name__ == "__main__":
     #this code will be executed only if we do not load this file as library
@@ -447,7 +589,7 @@ if __name__ == "__main__":
     #surface 4 pro camera 1
     cap = cv2.VideoCapture(0)
 
-    debug = False
+    debug = True
 
     fourcc = cv2.VideoWriter_fourcc('X', 'V', 'I', 'D')
     out_width  = 1080
@@ -458,6 +600,7 @@ if __name__ == "__main__":
     #is a intialization
     detector = dlib.get_frontal_face_detector()
     predictor = dlib.shape_predictor("shape_predictor_68_face_landmarks.dat")
+    #predictor = dlib.shape_predictor("new_shape_predictor_68_face_landmarks.dat")
 
     while True:
         _, frame = cap.read()
@@ -469,8 +612,9 @@ if __name__ == "__main__":
             landmarks = predictor(frame, face)
             landmarks = face_utils.shape_to_np(landmarks)
             
-            iris_left,iris_right = iris_position(gray, landmarks )
-
+            iris_left,iris_right,iris_rel_left,iris_rel_right   = irides_position(gray, landmarks )
+            
+            #note: we can safely modify frame as it is not passed to iris position.
             if(iris_left is not None):
                 p = tuple(iris_left[:2].astype(np.int))
                 r = int(iris_left[2])
@@ -482,6 +626,12 @@ if __name__ == "__main__":
                 r = int(iris_right[2])
                 cv2.circle(frame, p,r,(0,0,255),2)
                 cv2.putText(frame,str(i)+' : right iris',p,cv2.FONT_HERSHEY_SIMPLEX, 0.6, 255)
+
+            print(i, " : (",iris_rel_left, iris_rel_right, ")" )
+            if debug:
+                for (x,y) in landmarks:
+                    cv2.circle(frame, (x,y), 1, (0, 0,255), -1)
+
 
         key = cv2.waitKey(1)
         if key == 27:
