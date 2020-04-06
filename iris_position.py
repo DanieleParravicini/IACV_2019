@@ -443,10 +443,9 @@ def irides_position(frame, face_landmarks):
         if (use_HPF):
             c_right = fit_iris_with_HPF(right, mask_right)
         else:
-            c_right = fit_iris_with_HoughT(left,mask_right)
+            c_right = fit_iris_with_HoughT(right,mask_right)
 
     
-
 
     #At this point c_left and c_right are x,y coordinate referring 
     #to the subimage reference system
@@ -460,11 +459,22 @@ def irides_position(frame, face_landmarks):
         c_left[2] = c_left[2]/factor_magnification
 
         c_left = np.array(c_left)
+    '''  #here the bugfix but gives problems
+    if(c_right is not None):
+        if debug:
+            cv2.circle(right,tuple(c_right[:2]),c_right[2],(255, 0, 0),1)
+
+        c_right[0] = c_right[0]/factor_magnification + left_right
+        c_right[1] = c_right[1]/factor_magnification + top_right
+        c_right[2] = c_right[2]/factor_magnification
+
+        c_right = np.array(c_right)
+
+    '''
 
     #Note we have to recall irdes_position_relative_to_eye_extreme here
     #because c_left,c_right have to be expressed w.r.t. to the entire image
     # and to keep simple the computations we operate with a rotated image
-  
     iris_rel_left, iris_rel_right = irdes_position_relative_to_eye_extreme(face_landmarks, (c_left,c_right))
 
     if(c_right is not None):
@@ -510,11 +520,11 @@ def are_eyes_closed(face_landmarks, scale):
     
 def is_eye_closed(eye_landmarks, scale):
     
-    eye_centre_landmark     = eye_landmarks[2]
+    eye_corner_landmark     = eye_landmarks[2]
     eye_top_landmark        = eye_landmarks[4]
 
-    #H = math.sqrt((eye_top_landmark[0]-eye_centre_landmark[0])** 2+(eye_top_landmark[1]-eye_centre_landmark[1])**2)/scale
-    H = np.abs((eye_top_landmark[1]-eye_centre_landmark[1]))/scale
+    #H = math.sqrt((eye_top_landmark[0]-eye_corner_landmark[0])** 2+(eye_top_landmark[1]-eye_corner_landmark[1])**2)/scale
+    H = np.abs((eye_top_landmark[1]-eye_corner_landmark[1]))/scale
     print(H)
     if(H<=6):
         return True
@@ -567,16 +577,16 @@ def iris_position_relative_to_eye_extreme(eye_landmarks, iris_position):
     R_h = eye_relative_position[1]/H      # ratio of position (all the way down = 0, all the way up = 1)"""
     iris_position = np.array(iris_position[:2])
     
-    eye_centre    = np.array([0,0])
-    eye_centre[0] = (eye_external_landmark[0]   + eye_internal_landmark[0]  )/2
-    eye_centre[1] = (eye_top_landmark[1]        + eye_bottom_landmark[1]    )/2
+    eye_corner    = np.array([0,0])
+    eye_corner[0] = eye_external_landmark[0]
+    eye_corner[1] = eye_top_landmark[1]
 
     eye_dimension    = np.array([0,0])
     eye_dimension[0] = np.abs(eye_external_landmark[0]   - eye_internal_landmark[0])
     eye_dimension[1] = np.abs(eye_top_landmark[1]        - eye_bottom_landmark[1]  )
     
 
-    ratio_posit   = (iris_position[:2] - eye_centre) /eye_dimension
+    ratio_posit   = (iris_position[:2] - eye_corner) /eye_dimension
 
     
     return ratio_posit
