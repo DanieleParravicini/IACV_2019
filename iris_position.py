@@ -396,8 +396,6 @@ def rescale(img, scale_percent):
     # resize image
     return cv2.resize(img, dimR, cv2.INTER_LINEAR) #.INTER_NEAREST)  #cv2.INTER_CUBIC )#interpolation=cv2.INTER_AREA )
 
-
-
 def irides_position(frame, face_landmarks):
     """
     Receives a frame in grayscale and some face landmarks of a person in the image
@@ -459,7 +457,7 @@ def irides_position(frame, face_landmarks):
         c_left[2] = c_left[2]/factor_magnification
 
         c_left = np.array(c_left)
-    '''  #here the bugfix but gives problems
+     #here the bugfix but gives problems
     if(c_right is not None):
         if debug:
             cv2.circle(right,tuple(c_right[:2]),c_right[2],(255, 0, 0),1)
@@ -470,22 +468,11 @@ def irides_position(frame, face_landmarks):
 
         c_right = np.array(c_right)
 
-    '''
-
+    
     #Note we have to recall irdes_position_relative_to_eye_extreme here
     #because c_left,c_right have to be expressed w.r.t. to the entire image
     # and to keep simple the computations we operate with a rotated image
     iris_rel_left, iris_rel_right = irdes_position_relative_to_eye_extreme(face_landmarks, (c_left,c_right))
-
-    if(c_right is not None):
-        if debug :
-            cv2.circle(right,tuple(c_right[:2]),c_right[2],(255,0,0),1)
-
-        c_right[0] = c_right[0]/factor_magnification  + left_right
-        c_right[1] = c_right[1]/factor_magnification  + top_right
-        c_right[2] = c_right[2]/factor_magnification
-
-        c_right = np.array(c_right)
 
     
     if debug and 0 not in left.shape and 0 not in right.shape :
@@ -504,32 +491,40 @@ def irides_position(frame, face_landmarks):
         c_right[:2]  = rot.reverse_transform_point(np.array([c_right[:2]]))		
 
     return c_left, c_right , iris_rel_left, iris_rel_right
-    
+
 def stack(one,two):
     tmp = np.zeros([max(one.shape[0],two.shape[0]), max(one.shape[1],two.shape[1])*2], np.uint8)
     tmp[0:one.shape[0], 0:one.shape[1]] = one
     tmp[0:two.shape[0], one.shape[1]:one.shape[1]+two.shape[1]] = two
     return tmp
 
-
 def are_eyes_closed(face_landmarks, scale):
     left_eye_landmarks  = get_left_eye_landmarks(face_landmarks)
     right_eye_landmarks = get_right_eye_landmarks(face_landmarks)
 
     return is_eye_closed(left_eye_landmarks,scale), is_eye_closed(right_eye_landmarks,scale)
-    
+
 def is_eye_closed(eye_landmarks, scale):
     
-    eye_corner_landmark     = eye_landmarks[2]
-    eye_top_landmark        = eye_landmarks[4]
+    """
+    Given eye landmarks and a scale factor of the face
+    tells if the eye is closed or not.
 
-    #H = math.sqrt((eye_top_landmark[0]-eye_corner_landmark[0])** 2+(eye_top_landmark[1]-eye_corner_landmark[1])**2)/scale
-    H = np.abs((eye_top_landmark[1]-eye_corner_landmark[1]))/scale
+    Keyword arguments:
+    eye_landmarks -- landmark of the eye
+    scale -- relative distance of the head from the screen (1 head as close as possible to the screen)
+    """
+
+    eye_top_landmark           = eye_landmarks[2]
+    eye_bottom_landmark        = eye_landmarks[4]
+
+    H = np.abs((eye_bottom_landmark[1]-eye_top_landmark[1]))/scale
     print(H)
     if(H<=6):
         return True
 
 def irdes_position_relative_to_eye_extreme(face_landmarks, irides_position):
+
     left_eye_landmarks  = get_left_eye_landmarks(face_landmarks)
     right_eye_landmarks = get_right_eye_landmarks(face_landmarks)
 
@@ -537,28 +532,21 @@ def irdes_position_relative_to_eye_extreme(face_landmarks, irides_position):
     right_relative_position = iris_position_relative_to_eye_extreme(right_eye_landmarks,irides_position[1]) if irides_position[1] is not None else None
 
     return left_relative_position, right_relative_position
-    
 
 def iris_position_relative_to_eye_extreme(eye_landmarks, iris_position):
 
     """
+    Given the eye landmarks and the iris position returns
+    a local position relative to the left and top edges of the eye.
+    Example:
+     x_l = 0.6    x_r = 0.6
+    (-----x---)  (-----x---)
+    Same for the y axis.
 
-    if(eye_selector == 0):
-        eye_external_landmark   = face_landmarks[36] = eye_landmarks[0]
-        eye_internal_landmark   = face_landmarks[39] = eye_landmarks[3]
-        eye_top_landmark        = face_landmarks[38] = eye_landmarks[2]
-        eye_bottom_landmark     = face_landmarks[40] = eye_landmarks[4]
-    else:
-        eye_external_landmark   = face_landmarks[42]
-        eye_internal_landmark   = face_landmarks[45]
-        eye_top_landmark        = face_landmarks[43]
-        eye_bottom_landmark     = face_landmarks[47]
-        Non ho bene in mente il processo con il quale andiamo ad estrarre la %x,%y 
-        ma se diciamo il 60 % sulla x in tutte due gli occhi 
-        (------x---)  (------x---) 
-        e non 
-        (------x---)  (---x------)
-        giusto?
+    Keyword arguments:
+    eye_landmarks -- landmark or the eye
+    iris_position -- absolte iris position relative to the image frame
+
     """
 
     eye_external_landmark   = eye_landmarks[0]
@@ -566,15 +554,6 @@ def iris_position_relative_to_eye_extreme(eye_landmarks, iris_position):
     eye_top_landmark        = eye_landmarks[2]
     eye_bottom_landmark     = eye_landmarks[4]
 
-    """
-
-    D = math.sqrt((eye_external_landmark[0]-eye_internal_landmark[0])** 2+(eye_external_landmark[1]-eye_internal_landmark[1])**2)
-    H = math.sqrt((eye_top_landmark[0]-eye_bottom_landmark[0])** 2+(eye_top_landmark[1]-eye_bottom_landmark[1])**2)
-
-    eye_relative_position = project(np.asarray(eye_internal_landmark), np.asarray(eye_external_landmark), (iris_position[:2]), D, H)
-
-    R_d = eye_relative_position[0]/D      #ratio of position (all to the left = 0, all the way to the right = 1)
-    R_h = eye_relative_position[1]/H      # ratio of position (all the way down = 0, all the way up = 1)"""
     iris_position = np.array(iris_position[:2])
     
     eye_corner    = np.array([0,0])
@@ -585,13 +564,11 @@ def iris_position_relative_to_eye_extreme(eye_landmarks, iris_position):
     eye_dimension[0] = np.abs(eye_external_landmark[0]   - eye_internal_landmark[0])
     eye_dimension[1] = np.abs(eye_top_landmark[1]        - eye_bottom_landmark[1]  )
     
-
     ratio_posit   = (iris_position[:2] - eye_corner) /eye_dimension
-
     
     return ratio_posit
 
-    
+
 if __name__ == "__main__":
     #this code will be executed only if we do not load this file as library
 
