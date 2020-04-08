@@ -396,6 +396,10 @@ def rescale(img, scale_percent):
     # resize image
     return cv2.resize(img, dimR, cv2.INTER_LINEAR) #.INTER_NEAREST)  #cv2.INTER_CUBIC )#interpolation=cv2.INTER_AREA )
 
+def head_scale(rotated_landmarks):
+    head_hight = rotated_landmarks[33][1]-rotated_landmarks[27][1]
+    return head_hight/180
+
 def irides_position(frame, face_landmarks):
     """
     Receives a frame in grayscale and some face landmarks of a person in the image
@@ -417,12 +421,12 @@ def irides_position(frame, face_landmarks):
     
     (left, mask_left, (top_left,left_left)),(right, mask_right, (top_right, left_right)) = segment_eyes(rotated_frame, rotated_landmarks, square)
     
+    is_left_closed, is_right_closed = are_eyes_closed(rotated_landmarks)
     # detect iris based on Hough Transform fail to recognize iris with 
     # small images require a resize but HPF performs better without resize
+    
     factor_magnification = 5 if not use_HPF else 1
-    
-    is_left_closed, is_right_closed = are_eyes_closed(face_landmarks, factor_magnification)
-    
+
     if is_left_closed:
         c_left = None
     else:
@@ -498,11 +502,11 @@ def stack(one,two):
     tmp[0:two.shape[0], one.shape[1]:one.shape[1]+two.shape[1]] = two
     return tmp
 
-def are_eyes_closed(face_landmarks, scale):
-    left_eye_landmarks  = get_left_eye_landmarks(face_landmarks)
-    right_eye_landmarks = get_right_eye_landmarks(face_landmarks)
+def are_eyes_closed(rotated_landmarks):
+    left_eye_landmarks  = get_left_eye_landmarks(rotated_landmarks)
+    right_eye_landmarks = get_right_eye_landmarks(rotated_landmarks)
 
-    return is_eye_closed(left_eye_landmarks,scale), is_eye_closed(right_eye_landmarks,scale)
+    return is_eye_closed(left_eye_landmarks, head_scale(rotated_landmarks)), is_eye_closed(right_eye_landmarks, head_scale(rotated_landmarks))
 
 def is_eye_closed(eye_landmarks, scale):
     
@@ -520,7 +524,7 @@ def is_eye_closed(eye_landmarks, scale):
 
     H = np.abs((eye_bottom_landmark[1]-eye_top_landmark[1]))/scale
     print(H)
-    if(H<=6):
+    if(H<=13):
         return True
 
 def irdes_position_relative_to_eye_extreme(face_landmarks, irides_position):
