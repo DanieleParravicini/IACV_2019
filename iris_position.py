@@ -574,7 +574,7 @@ if __name__ == "__main__":
 
     #surface 3 pro camera 0
     #surface 4 pro camera 1
-    cap = cv2.VideoCapture(0)
+    cap = cv2.VideoCapture(1)
 
     debug = True
 
@@ -591,12 +591,18 @@ if __name__ == "__main__":
 
     while True:
         _, frame = cap.read()
+        lab = cv2.cvtColor(frame, cv2.COLOR_BGR2LAB)
+        lab_planes = cv2.split(lab)
+        clahe = cv2.createCLAHE(clipLimit=2.0)
+        lab_planes[0] = clahe.apply(lab_planes[0])
+        lab = cv2.merge(lab_planes)
+        frame_hist = cv2.cvtColor(lab, cv2.COLOR_LAB2BGR)
 
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         faces = detector(gray)
 
         for i,face in enumerate(faces):
-            landmarks = predictor(frame, face)
+            landmarks = predictor(frame_hist, face)
             landmarks = face_utils.shape_to_np(landmarks)
             
             iris_left,iris_right,iris_rel_left,iris_rel_right   = irides_position(gray, landmarks )
