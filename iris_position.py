@@ -473,10 +473,10 @@ def irides_position(frame, face_landmarks):
         c_right = np.array(c_right)
 
     
-    #Note we have to recall irdes_position_relative_to_eye_extreme here
+    #Note we have to recall irides_position_relative_to_eye_extreme here
     #because c_left,c_right have to be expressed w.r.t. to the entire image
     # and to keep simple the computations we operate with a rotated image
-    iris_rel_left, iris_rel_right = irdes_position_relative_to_eye_extreme(face_landmarks, (c_left,c_right))
+    iris_rel_left, iris_rel_right = irides_position_relative_to_eye_extreme(face_landmarks, (c_left,c_right))
 
     
     if debug and 0 not in left.shape and 0 not in right.shape :
@@ -523,11 +523,11 @@ def is_eye_closed(eye_landmarks, scale):
     eye_bottom_landmark        = eye_landmarks[4]
 
     H = np.abs((eye_bottom_landmark[1]-eye_top_landmark[1]))/scale
-    print(H)
+
     if(H<=13):
         return True
 
-def irdes_position_relative_to_eye_extreme(face_landmarks, irides_position):
+def irides_position_relative_to_eye_extreme(face_landmarks, irides_position):
 
     left_eye_landmarks  = get_left_eye_landmarks(face_landmarks)
     right_eye_landmarks = get_right_eye_landmarks(face_landmarks)
@@ -571,6 +571,25 @@ def iris_position_relative_to_eye_extreme(eye_landmarks, iris_position):
     ratio_posit   = (iris_position[:2] - eye_corner) /eye_dimension
     
     return ratio_posit
+
+def irides_position_form_video(camera_number):
+    """
+    Given a camera_number (0 for surface pro 3 and 1 for surface pro 4)
+    The function will return the eye position in the current image frame wrt
+    the nose side eye angle.
+    """
+    cap = cv2.VideoCapture(camera_number)
+    _, frame = cap.read()
+    detector = dlib.get_frontal_face_detector()
+    predictor = dlib.shape_predictor("shape_predictor_68_face_landmarks.dat")
+    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+    faces = detector(gray)
+
+    for i, face in enumerate(faces):
+        landmarks = predictor(frame_hist, face)
+        landmarks = face_utils.shape_to_np(landmarks)
+        
+    return irides_position(gray, landmarks)
 
 
 if __name__ == "__main__":
