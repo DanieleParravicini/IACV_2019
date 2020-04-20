@@ -84,14 +84,14 @@ class Calibration:
         v_l, v_r = ir_pos.irides_position_form_video(1)
         for i in range(5):                                      #average out 5 consequents values
             v_l, v_r = (ir_pos.irides_position_form_video(1))/2
-        calibration_eye_point_left.append(v_l)
-        calibration_eye_point_right.append(v_r)                 #Maybe the tuples should be converted in array
-                                                                #consider to change the visual appearance of the dot to give a feedback  to user
-    
+        calibration_eye_point_left.append([1+v_l[0]^2, v_l[0], v_l[1], v_l[0]*v_l[1], v_l[0]^2, 0, 0, 0, 0])
+        calibration_eye_point_right.append(1, 0, 0, 0, 0, v_r[0], v_r[1], v_r[0]*v_r[1], v_r[0]^2, v_r[1]^2)
+         #consider to change the visual appearance of the dot to give a feedback  to user
+
     def compute_parameters(self):
         #devo risolvere un sistema di 9*2 equazioni in (6*2-3)*2 incognite
         #for each point i call a function that calls gaze position and returns the actual eye position and i average out this value.
-        # A=[1+v_x^2, v_x, v_y, v_x*v_y, v_x^2, 0, 0, 0, 0]
+        # A=[[1+v_x^2, v_x, v_y, v_x*v_y, v_x^2, 0, 0, 0, 0]
         #   [1, 0, 0, 0, 0, v_x, v_y, v_x*v_y, v_x^2, v_y^2]
         #   [1+v_x^2, v_x, v_y, v_x*v_y, v_x^2, 0, 0, 0, 0]
         #   [1, 0, 0, 0, 0, v_x, v_y, v_x*v_y, v_x^2, v_y^2]
@@ -109,20 +109,16 @@ class Calibration:
         #   [1, 0, 0, 0, 0, v_x, v_y, v_x*v_y, v_x^2, v_y^2]
         #   [1+v_x^2, v_x, v_y, v_x*v_y, v_x^2, 0, 0, 0, 0]
         #   [1, 0, 0, 0, 0, v_x, v_y, v_x*v_y, v_x^2, v_y^2]
-        #x=[a_0, a_1, a_2, a_3, a_4, b_1, b_2, b_3, b_4, b_5]
-        #V=[s_x,s_y,s_x,s_y,s_x,s_y,s_x,s_y,s_x,s_y,s_x,s_y,s_x,s_y,s_x,s_y,s_x,s_y]'
-        
+        #x=[a_0, a_1, a_2, a_3, a_4, b_1, b_2, b_3, b_4, b_5]]
+        #B=[s_x,s_y,s_x,s_y,s_x,s_y,s_x,s_y,s_x,s_y,s_x,s_y,s_x,s_y,s_x,s_y,s_x,s_y]
+
+        B = np.asarray(calibration_point).flatten()
         #left eye
         A_l = np.array(calibration_eye_point_left)          #not tested yet (maybe problems for array dimentions)
-        x_l = np.linalg.solve(A_l,calibration_point)
+        x_l = np.linalg.solve(A_l,B)
         #right eye
-        A_r = np.array()
-        V = np.array(calibration_eye_point_right)
-        x_r = np.linalg.solve(A_r, calibration_point)
-    
-    def hide_me(self, event):
-        print('hide me')
-        event.place_forget()
+        A_r = np.array(calibration_eye_point_right)
+        x_r = np.linalg.solve(A_r, B)
 
     def close_window(self):
         calibration_done = True
