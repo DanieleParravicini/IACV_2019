@@ -39,7 +39,7 @@ class Calibration:
         self.frame = tk.Frame(self.master)
         self.explanation = tk.Text(self.frame, height="2", font="Helvetica")
         self.explanation.pack()
-        self.explanation.insert(tk.END, "You have to click in order on the red dot in sequence and waiting 5 seconds\n before move to the next,")
+        self.explanation.insert(tk.END, "You have to click in order on the red dot in sequence and waiting 5 seconds\n before move to the next!")
         self.back = tk.Button(self.frame, text=f"<- Quit Calibration!", fg="red", command=self.close_window)
         self.back.pack()
         point_position = self.calibration_points()
@@ -55,12 +55,16 @@ class Calibration:
 
     def drawCircle(self, x, y, row, column):
         self.circular_button = self.create_circle(x, y, self.canvas)
+        self.test = self.circular_button
         button_number = column+(row-1)*3
         # self.clicked just for testing but than it will call calibrate
-        self.canvas.tag_bind(self.circular_button, "<Button-1>", lambda event, circular_button = self.circular_button: self.clicked(event, button_number))
+        self.canvas.tag_bind(self.circular_button, "<Button-1>", lambda event, circle_button = self.circular_button: self.clicked(event, button_number))
     
     def clicked(self, event, id_button):
-        self.canvas.itemconfig(self.circular_button, fill="blue")          #to be investigate how to change color over circle presssed
+        self.canvas.itemconfig(self.circular_button, fill="green")
+        # to be investigate how to change color over circle presssed
+        self.explanation.delete('1.0', tk.END)
+        self.explanation.insert(tk.END, f"You have pressed {id_button}th!")
         print(id_button)
         
     def calibration_points(self):
