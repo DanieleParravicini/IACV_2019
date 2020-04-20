@@ -55,12 +55,13 @@ class Calibration:
 
     def drawCircle(self, x, y, row, column):
         self.circular_button = self.create_circle(x, y, self.canvas)
-        button_number = column+(row-1)*3                                                #maybe a good id number
-        self.canvas.tag_bind(self.circular_button, "<Button-1>", self.clicked)          #self.clicked just for testing but than it will call calibrate
+        button_number = column+(row-1)*3
+        # self.clicked just for testing but than it will call calibrate
+        self.canvas.tag_bind(self.circular_button, "<Button-1>", lambda event, circular_button = self.circular_button: self.clicked(event, button_number))
     
-    def clicked(self, event):
-        #self.canvas.itemconfig(self.circular_button, fill="blue")          #to be investigate how to change color over circle presssed
-        print("Pressed: " + self.circular_button)                           #find a way to extract the button ID (if performed in order no problems but no guarantee on the user cliking in order)
+    def clicked(self, event, id_button):
+        self.canvas.itemconfig(self.circular_button, fill="blue")          #to be investigate how to change color over circle presssed
+        print(id_button)
         
     def calibration_points(self):
         self.canvas = tk.Canvas(self.master)
