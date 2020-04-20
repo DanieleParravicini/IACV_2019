@@ -80,13 +80,20 @@ class Calibration:
         self.canvas.pack(fill=tk.BOTH, expand=1)
         return calibration_point
 
-    def calibrate(self, x, y, row, column):
+    def calibrate(self, event, id_button):
+        self.explanation.delete('1.0', tk.END)
+        self.explanation.insert(tk.END, f"You have pressed {id_button}th point!\n Calibration started!")
         v_l, v_r = ir_pos.irides_position_form_video(1)
-        for i in range(5):                                      #average out 5 consequents values
+        for i in range(5):                                              #average out 5 consequents values
             v_l, v_r = (ir_pos.irides_position_form_video(1))/2
         calibration_eye_point_left.append([1+v_l[0]^2, v_l[0], v_l[1], v_l[0]*v_l[1], v_l[0]^2, 0, 0, 0, 0])
         calibration_eye_point_right.append(1, 0, 0, 0, 0, v_r[0], v_r[1], v_r[0]*v_r[1], v_r[0]^2, v_r[1]^2)
-         #consider to change the visual appearance of the dot to give a feedback  to user
+        if(id_button < 9):
+            self.explanation.delete('1.0', tk.END)
+            self.explanation.insert(tk.END, f"Click on the next point!")            #consider to change the visual appearance of the dot to give a feedback  to user
+        else:
+            self.explanation.delete('1.0', tk.END)
+            self.explanation.insert(tk.END, f"Calibration Ended!")
 
     def compute_parameters(self):
         #devo risolvere un sistema di 9*2 equazioni in (6*2-3)*2 incognite
