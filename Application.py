@@ -55,18 +55,17 @@ class Calibration:
 
     def drawCircle(self, x, y, row, column):
         self.circular_button = self.create_circle(x, y, self.canvas)
-        self.test = self.circular_button
         button_number = column+(row-1)*3
         # self.clicked just for testing but than it will call calibrate
         self.canvas.tag_bind(self.circular_button, "<Button-1>", lambda event, circle_button = self.circular_button: self.clicked(event, button_number))
-    
+
     def clicked(self, event, id_button):
         self.canvas.itemconfig(self.circular_button, fill="green")
         # to be investigate how to change color over circle presssed
         self.explanation.delete('1.0', tk.END)
-        self.explanation.insert(tk.END, f"You have pressed {id_button}th!")
+        self.explanation.insert(tk.END, f"You have pressed {id_button}th point!")
         print(id_button)
-        
+
     def calibration_points(self):
         self.canvas = tk.Canvas(self.master)
         user32 = ctypes.windll.user32
@@ -80,8 +79,7 @@ class Calibration:
                 calibration_point.append(point)
         self.canvas.pack(fill=tk.BOTH, expand=1)
         return calibration_point
-    
- 
+
     def calibrate(self, x, y, row, column):
         v_l, v_r = ir_pos.irides_position_form_video(1)
         for i in range(5):                                      #average out 5 consequents values
