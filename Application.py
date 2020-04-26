@@ -30,8 +30,6 @@ class Home:
     def new_window(self, number, _class):
         self.new = tk.Toplevel(self.master)
         _class(self.new, number)
-
-
 class Calibration:
     def __init__(self, master, number):
         self.master = master
@@ -42,7 +40,7 @@ class Calibration:
         self.explanation.insert(tk.END, "You have to click in order on the red dot in sequence and waiting 5 seconds\n before move to the next!")
         self.back = tk.Button(self.frame, text=f"<- Quit Calibration!", fg="red", command=self.close_window)
         self.back.pack()
-        point_position = self.calibration_points()
+        self.calibration_points()
         self.frame.pack()
 
     def create_circle(self, x, y, canvas):  # center coordinates, radius
@@ -51,15 +49,16 @@ class Calibration:
         y0 = y - r
         x1 = x + r
         y1 = y + r
-        return canvas.create_oval(x0, y0, x1, y1, fill="red")
+        return canvas.create_oval(x0, y0, x1, y1, fill="red", activefill = 'orange')
 
     def drawCircle(self, x, y, row, column):
         self.circular_button = self.create_circle(x, y, self.canvas)
         button_number = column+(row-1)*3
+        self.canvas.create_text(x,y-15, text=f"{button_number}")
         # self.clicked just for testing but than it will call calibrate
-        self.canvas.tag_bind(self.circular_button, "<Button-1>", lambda event, circle_button = self.circular_button: self.clicked(event, button_number))
+        self.canvas.tag_bind(self.circular_button, "<Button-1>", lambda event, circle_button = self.circular_button: self.calibrate(event, button_number))
 
-    def clicked(self, event, id_button):
+    def clicked(self, event, id_button):        #function used just for debug
         self.canvas.itemconfig(self.circular_button, fill="green")
         # to be investigate how to change color over circle presssed
         self.explanation.delete('1.0', tk.END)
@@ -78,7 +77,6 @@ class Calibration:
                 point = (x*column+padding, y*row+padding)
                 calibration_point.append(point)
         self.canvas.pack(fill=tk.BOTH, expand=1)
-        return calibration_point
 
     def calibrate(self, event, id_button):
         self.explanation.delete('1.0', tk.END)
@@ -90,7 +88,7 @@ class Calibration:
         calibration_eye_point_right.append(1, 0, 0, 0, 0, v_r[0], v_r[1], v_r[0]*v_r[1], v_r[0]^2, v_r[1]^2)
         if(id_button < 9):
             self.explanation.delete('1.0', tk.END)
-            self.explanation.insert(tk.END, f"Click on the next point!")            #consider to change the visual appearance of the dot to give a feedback  to user
+            self.explanation.insert(tk.END, f"Click on the {id_button+1}th point!")            #consider to change the visual appearance of the dot to give a feedback  to user
         else:
             self.explanation.delete('1.0', tk.END)
             self.explanation.insert(tk.END, f"Calibration Ended!")
@@ -122,6 +120,7 @@ class Calibration:
         B = np.asarray(calibration_point).flatten()
         #left eye
         A_l = np.array(calibration_eye_point_left)          #not tested yet (maybe problems for array dimentions)
+        print(A_l)
         x_l = np.linalg.solve(A_l,B)
         #right eye
         A_r = np.array(calibration_eye_point_right)
@@ -130,24 +129,20 @@ class Calibration:
     def close_window(self):
         calibration_done = True
         self.master.destroy()
-
-
 class Application:
     def __init__(self, master, number):
         self.master = master
-        self.master.geometry("400x400+200+200")
+        self.master.attributes('-fullscreen', True)
         self.frame = tk.Frame(self.master)
-        self.quit = tk.Button(
-            self.frame, text=f"Quit this window n. {number}", command=self.close_window)
-        self.quit.pack()
-        self.label = tk.Label(
-            self.frame, text="THIS IS ONLY IN THE THIRD WINDOW")
-        self.label.pack()
+        self.explanation = tk.Text(self.frame, height="2", font="Helvetica")
+        self.explanation.pack()
+        self.explanation.insert(tk.END, "Here will appear the input typed!")
+        self.back = tk.Button(self.frame, text=f"<- Quit Keyboard App!", fg="red", command=self.close_window)
+        self.back.pack()
         self.frame.pack()
 
     def close_window(self):
         self.master.destroy()
-
 
 if __name__ == "__main__":
     if debug:
