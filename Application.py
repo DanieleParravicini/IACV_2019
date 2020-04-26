@@ -4,12 +4,14 @@ import threading
 import ctypes
 import numpy as np
 import iris_position as ir_pos
+import cv2
 
-calibration_done = False
-debug = False
-calibration_eye_point_left = []
+camera_number               = 0
+calibration_done            = False
+debug                       = False
+calibration_eye_point_left  = []
 calibration_eye_point_right = []
-calibration_point = []
+calibration_point           = []
 
 class Home:
     def __init__(self, master):
@@ -81,17 +83,45 @@ class Calibration:
     def calibrate(self, event, id_button):
         self.explanation.delete('1.0', tk.END)
         self.explanation.insert(tk.END, f"You have pressed {id_button}th point!\n Calibration started!")
-        v_l, v_r = ir_pos.irides_position_form_video(1)
-        for i in range(5):                                              #average out 5 consequents values
-            v_l, v_r = (ir_pos.irides_position_form_video(1))/2
-        calibration_eye_point_left.append([1+v_l[0]^2, v_l[0], v_l[1], v_l[0]*v_l[1], v_l[0]^2, 0, 0, 0, 0])
-        calibration_eye_point_right.append(1, 0, 0, 0, 0, v_r[0], v_r[1], v_r[0]*v_r[1], v_r[0]^2, v_r[1]^2)
+        cap             = cv2.VideoCapture(camera_number)
+       
+    
+        n = 5
+        v_l = 0
+        v_r = 0
+        i = 0
+        while(i < n):                                              #average out 5 consequents values
+            _, frame        = cap.read()
+            iris_info                 = ir_pos.irides_position_form_video(frame)
+            try:
+                _, _, rel_l, rel_r = next(iris_info)
+                if(rel_l is None or rel_r is None ):
+                    continue
+
+                v_l                 += rel_l
+                v_r                 += rel_r
+                i                   += 1
+                print('ok')
+                
+            except StopIteration:
+                pass
+            
+
+
+        v_l = v_l/n
+        v_r = v_r/n
+
+        cap.release()
+
+        calibration_eye_point_left.append([1+v_l[0]**2, v_l[0], v_l[1], v_l[0]*v_l[1], v_l[0]**2, 0, 0, 0, 0])
+        calibration_eye_point_right.append([1, 0, 0, 0, 0, v_r[0], v_r[1], v_r[0]*v_r[1], v_r[0]**2, v_r[1]**2])
         if(id_button < 9):
             self.explanation.delete('1.0', tk.END)
             self.explanation.insert(tk.END, f"Click on the {id_button+1}th point!")            #consider to change the visual appearance of the dot to give a feedback  to user
         else:
             self.explanation.delete('1.0', tk.END)
             self.explanation.insert(tk.END, f"Calibration Ended!")
+            self.compute_parameters()
 
     def compute_parameters(self):
         #devo risolvere un sistema di 9*2 equazioni in (6*2-3)*2 incognite
@@ -125,6 +155,7 @@ class Calibration:
         #right eye
         A_r = np.array(calibration_eye_point_right)
         x_r = np.linalg.solve(A_r, B)
+        print(x_r, x_l)
 
     def close_window(self):
         calibration_done = True

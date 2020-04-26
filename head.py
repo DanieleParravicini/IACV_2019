@@ -55,7 +55,10 @@ def line_intersection(line1, line2):
     y = det(d, ydiff) / div
     return x, y
 
-
+def head_scale(rotated_landmarks):
+    head_hight = rotated_landmarks[33][1]-rotated_landmarks[27][1]
+    return head_hight/180
+	
 if __name__ == "__main__":
     #this code will be executed only if we do not load this file as library
 
