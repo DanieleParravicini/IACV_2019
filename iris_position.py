@@ -407,7 +407,7 @@ def irides_position(frame, face_landmarks):
 
 
     """	
-    debug               = True
+    debug               = False
     use_HPF 			= True
     square              = True
 
@@ -582,6 +582,13 @@ def irides_position_form_video(camera_number):
     _, frame = cap.read()
     detector = dlib.get_frontal_face_detector()
     predictor = dlib.shape_predictor("shape_predictor_68_face_landmarks.dat")
+    
+    lab = cv2.cvtColor(frame, cv2.COLOR_BGR2LAB)
+    lab_planes = cv2.split(lab)
+    clahe = cv2.createCLAHE(clipLimit=2.0)
+    lab_planes[0] = clahe.apply(lab_planes[0])
+    lab = cv2.merge(lab_planes)
+    frame_hist = cv2.cvtColor(lab, cv2.COLOR_LAB2BGR)
     gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
     faces = detector(gray)
 
@@ -599,7 +606,7 @@ if __name__ == "__main__":
     #surface 4 pro camera 1
     cap = cv2.VideoCapture(1)
 
-    debug = True
+    debug = False
 
     fourcc = cv2.VideoWriter_fourcc('X', 'V', 'I', 'D')
     out_width  = 1080
