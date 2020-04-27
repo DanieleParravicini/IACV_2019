@@ -460,7 +460,7 @@ def irides_position(frame, face_landmarks):
 
 
     """	
-    debug               = True
+    debug               = False
     use_HPF 			= True
     square              = True
 

@@ -9,7 +9,7 @@ import cv2
 camera_number               = 0
 calibration_done            = False
 debug                       = False
-calibration_eye_point_left  = []
+calibration_eye_point_left = []
 calibration_eye_point_right = []
 calibration_point           = []
 
@@ -83,7 +83,7 @@ class Calibration:
     def calibrate(self, event, id_button):
         self.explanation.delete('1.0', tk.END)
         self.explanation.insert(tk.END, f"You have pressed {id_button}th point!\n Calibration started!")
-        cap             = cv2.VideoCapture(camera_number)
+        cap = cv2.VideoCapture(camera_number)
        
     
         n = 5
@@ -91,8 +91,8 @@ class Calibration:
         v_r = 0
         i = 0
         while(i < n):                                              #average out 5 consequents values
-            _, frame        = cap.read()
-            iris_info                 = ir_pos.irides_position_form_video(frame)
+            _, frame   = cap.read()
+            iris_info  = ir_pos.irides_position_form_video(frame)
             try:
                 _, _, rel_l, rel_r = next(iris_info)
                 if(rel_l is None or rel_r is None ):
@@ -101,20 +101,20 @@ class Calibration:
                 v_l                 += rel_l
                 v_r                 += rel_r
                 i                   += 1
-                print('ok')
                 
             except StopIteration:
                 pass
-            
-
 
         v_l = v_l/n
         v_r = v_r/n
 
         cap.release()
 
-        calibration_eye_point_left.append([1+v_l[0]**2, v_l[0], v_l[1], v_l[0]*v_l[1], v_l[0]**2, 0, 0, 0, 0])
-        calibration_eye_point_right.append([1, 0, 0, 0, 0, v_r[0], v_r[1], v_r[0]*v_r[1], v_r[0]**2, v_r[1]**2])
+        calibration_eye_point_left.append(np.array([1+v_l[0]**2, v_l[0], v_l[1], v_l[0]*v_l[1], v_l[0]**2, 0, 0, 0, 0, 0]))
+        calibration_eye_point_left.append(np.array([1, 0, 0, 0, 0, v_l[0], v_l[1], v_l[0]*v_l[1], v_l[0]**2, v_l[1]**2]))
+        calibration_eye_point_right.append(np.array([1+v_r[0]**2, v_r[0], v_r[1], v_r[0]*v_r[1], v_r[0]**2, 0, 0, 0, 0, 0]))
+        calibration_eye_point_right.append(np.array([1, 0, 0, 0, 0, v_r[0], v_r[1], v_r[0]*v_r[1], v_r[0]**2, v_r[1]**2]))
+
         if(id_button < 9):
             self.explanation.delete('1.0', tk.END)
             self.explanation.insert(tk.END, f"Click on the {id_button+1}th point!")            #consider to change the visual appearance of the dot to give a feedback  to user
@@ -126,36 +126,39 @@ class Calibration:
     def compute_parameters(self):
         #devo risolvere un sistema di 9*2 equazioni in (6*2-3)*2 incognite
         #for each point i call a function that calls gaze position and returns the actual eye position and i average out this value.
-        # A=[[1+v_x^2, v_x, v_y, v_x*v_y, v_x^2, 0, 0, 0, 0]
+        # A=[[1+v_x^2, v_x, v_y, v_x*v_y, v_x^2, 0, 0, 0, 0, 0]
         #   [1, 0, 0, 0, 0, v_x, v_y, v_x*v_y, v_x^2, v_y^2]
-        #   [1+v_x^2, v_x, v_y, v_x*v_y, v_x^2, 0, 0, 0, 0]
+        #   [1+v_x^2, v_x, v_y, v_x*v_y, v_x^2, 0, 0, 0, 0, 0]
         #   [1, 0, 0, 0, 0, v_x, v_y, v_x*v_y, v_x^2, v_y^2]
-        #   [1+v_x^2, v_x, v_y, v_x*v_y, v_x^2, 0, 0, 0, 0]
+        #   [1+v_x^2, v_x, v_y, v_x*v_y, v_x^2, 0, 0, 0, 0, 0]
         #   [1, 0, 0, 0, 0, v_x, v_y, v_x*v_y, v_x^2, v_y^2]
-        #   [1+v_x^2, v_x, v_y, v_x*v_y, v_x^2, 0, 0, 0, 0]
+        #   [1+v_x^2, v_x, v_y, v_x*v_y, v_x^2, 0, 0, 0, 0, 0]
         #   [1, 0, 0, 0, 0, v_x, v_y, v_x*v_y, v_x^2, v_y^2]
-        #   [1+v_x^2, v_x, v_y, v_x*v_y, v_x^2, 0, 0, 0, 0]
+        #   [1+v_x^2, v_x, v_y, v_x*v_y, v_x^2, 0, 0, 0, 0, 0]
         #   [1, 0, 0, 0, 0, v_x, v_y, v_x*v_y, v_x^2, v_y^2]
-        #   [1+v_x^2, v_x, v_y, v_x*v_y, v_x^2, 0, 0, 0, 0]
+        #   [1+v_x^2, v_x, v_y, v_x*v_y, v_x^2, 0, 0, 0, 0, 0]
         #   [1, 0, 0, 0, 0, v_x, v_y, v_x*v_y, v_x^2, v_y^2]
-        #   [1+v_x^2, v_x, v_y, v_x*v_y, v_x^2, 0, 0, 0, 0]
+        #   [1+v_x^2, v_x, v_y, v_x*v_y, v_x^2, 0, 0, 0, 0, 0]
         #   [1, 0, 0, 0, 0, v_x, v_y, v_x*v_y, v_x^2, v_y^2]
-        #   [1+v_x^2, v_x, v_y, v_x*v_y, v_x^2, 0, 0, 0, 0]
+        #   [1+v_x^2, v_x, v_y, v_x*v_y, v_x^2, 0, 0, 0, 0, 0]
         #   [1, 0, 0, 0, 0, v_x, v_y, v_x*v_y, v_x^2, v_y^2]
-        #   [1+v_x^2, v_x, v_y, v_x*v_y, v_x^2, 0, 0, 0, 0]
+        #   [1+v_x^2, v_x, v_y, v_x*v_y, v_x^2, 0, 0, 0, 0, 0]
         #   [1, 0, 0, 0, 0, v_x, v_y, v_x*v_y, v_x^2, v_y^2]
         #x=[a_0, a_1, a_2, a_3, a_4, b_1, b_2, b_3, b_4, b_5]]
         #B=[s_x,s_y,s_x,s_y,s_x,s_y,s_x,s_y,s_x,s_y,s_x,s_y,s_x,s_y,s_x,s_y,s_x,s_y]
-
+        
         B = np.asarray(calibration_point).flatten()
+        B=B.astype(int)
         #left eye
-        A_l = np.array(calibration_eye_point_left)          #not tested yet (maybe problems for array dimentions)
-        print(A_l)
-        x_l = np.linalg.solve(A_l,B)
+        A_l = np.vstack(calibration_eye_point_left)
+        x_l = np.linalg.lstsq(A_l, B, rcond=None)[0]
         #right eye
-        A_r = np.array(calibration_eye_point_right)
-        x_r = np.linalg.solve(A_r, B)
-        print(x_r, x_l)
+        A_r = np.vstack(calibration_eye_point_right)
+        x_r = np.linalg.lstsq(A_r, B, rcond=None)[0]
+        print('Calibration parameters for left eye: ' + str(x_l))
+        print('Calibration parameters for right eye: ' + str(x_r))
+        self.explanation.delete('1.0', tk.END)
+        self.explanation.insert(tk.END, f"Parameters succesfully computed!\nNow you can start using the gaze track.")
 
     def close_window(self):
         calibration_done = True
