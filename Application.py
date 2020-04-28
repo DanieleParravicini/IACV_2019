@@ -13,8 +13,12 @@ debug                       = False
 calibration_eye_point_left  = []
 calibration_eye_point_right = []
 calibration_point           = []
-x_l = [7850.48655679, -12548.91300924, -18726.75123879, 48410.8786089, -22059.98389676,  42999.98064041, -80240.74302094, -95256.41330096, -5406.1073288, 147919.86805479]   #calibration parameters for me to test overwritten by calibration
-x_r = [10630.97138329, -38618.71364649, 11160.83612252, -10236.84304062, 21051.47442785, -15257.93305172, -32495.67846243, 29940.21140659, 5565.69825958, 15524.04403917]
+x_l = [-32135.00893827, 100083.69427809,  85509.40189455, -198923.71419596,
+       -21350.62179516, -3015.41128191, 131978.89576158, -3424.1461178,
+       9605.44074001, -131035.97242032]  # calibration parameters for me to test overwritten by calibration
+x_r = [-18417.29918659, 78282.52187778, -12735.70671031, 33758.59163978,
+       -77485.32031864, 63486.07953807, 5302.47117536, -67208.48323979,
+       -31413.2896205, 36351.51290157]
 
 class Home:
     def __init__(self, master):
@@ -31,8 +35,8 @@ class Home:
     def mouseControl(self):
         self.master.iconify()
         #Todo: here i compute and control the mouse position.
-        X_l = [[x_l[0], x_l[0]], [x_l[1], x_l[5]], [x_l[2], x_l[6]], [x_l[3], x_l[7]], [x_l[4], x_l[8]], [x_l[0], x_l[9]]]
-        X_r = [[x_r[0], x_r[0]], [x_r[1], x_r[5]], [x_r[2], x_r[6]], [x_r[3], x_r[7]], [x_r[4], x_r[8]], [x_r[0], x_r[9]]]
+        X_l = np.array([[x_l[0], x_l[1], x_l[2], x_l[3], x_l[4], x_l[0]], [x_l[0], x_l[5], x_l[6], x_l[7], x_l[8], x_l[9]]])
+        X_r = np.array([[x_r[0], x_r[1], x_r[2], x_r[3], x_r[4], x_r[0]], [x_r[0], x_r[5], x_r[6], x_r[7], x_r[8], x_r[9]]])
         cap = cv2.VideoCapture(camera_number)
 
         while True:
@@ -42,16 +46,17 @@ class Home:
                 _, _, rel_l, rel_r = next(iris_info)
                 if(rel_l is None or rel_r is None):
                     continue
-                iris_l_param = [1, rel_l[0], rel_l[1], rel_l[0]*rel_l[1], rel_l[0]**2, rel_l[1]**2]
-                iris_r_param = [1, rel_r[0], rel_r[1], rel_r[0]*rel_r[1], rel_r[0]**2, rel_r[1]**2]
+                iris_l_param = np.array([1, rel_l[0], rel_l[1], rel_l[0]*rel_l[1], rel_l[0]**2, rel_l[1]**2])
+                iris_r_param = np.array([1, rel_r[0], rel_r[1], rel_r[0]*rel_r[1], rel_r[0]**2, rel_r[1]**2])
+                print(iris_l_param)
+                gaze_l = X_l.dot(iris_l_param)
+                gaze_r = X_r.dot(iris_r_param)
+                gaze = abs(((gaze_l+gaze_r)/2))
+                #print(gaze)
+                mouse.move(gaze[0], gaze[1], absolute=True, duration=0)
             except StopIteration:
                 pass
 
-            gaze_l = np.linalg.lstsq(X_l, iris_l_param, rcond=None)[0]
-            gaze_r = np.linalg.lstsq(X_r, iris_r_param, rcond=None)[0]
-            gaze = ((gaze_l+gaze_r)/2)*10**9
-            print(gaze)
-            mouse.move(gaze[0], gaze[1], absolute=True, duration=0)
 
     def butnew(self, text, number, _class):
         tk.Button(self.frame, text=text,
@@ -137,9 +142,9 @@ class Calibration:
 
         cap.release()
 
-        calibration_eye_point_left.append(np.array([1+v_l[0]**2, v_l[0], v_l[1], v_l[0]*v_l[1], v_l[0]**2, 0, 0, 0, 0, 0]))
+        calibration_eye_point_left.append(np.array([1+v_l[1]**2, v_l[0], v_l[1], v_l[0]*v_l[1], v_l[0]**2, 0, 0, 0, 0, 0]))
         calibration_eye_point_left.append(np.array([1, 0, 0, 0, 0, v_l[0], v_l[1], v_l[0]*v_l[1], v_l[0]**2, v_l[1]**2]))
-        calibration_eye_point_right.append(np.array([1+v_r[0]**2, v_r[0], v_r[1], v_r[0]*v_r[1], v_r[0]**2, 0, 0, 0, 0, 0]))
+        calibration_eye_point_right.append(np.array([1+v_r[1]**2, v_r[0], v_r[1], v_r[0]*v_r[1], v_r[0]**2, 0, 0, 0, 0, 0]))
         calibration_eye_point_right.append(np.array([1, 0, 0, 0, 0, v_r[0], v_r[1], v_r[0]*v_r[1], v_r[0]**2, v_r[1]**2]))
 
         if(id_button < 9):
@@ -153,7 +158,7 @@ class Calibration:
     def compute_parameters(self):
         #devo risolvere un sistema di 9*2 equazioni in (6*2-3)*2 incognite
         #for each point i call a function that calls gaze position and returns the actual eye position and i average out this value.
-        # A=[[1+v_x^2, v_x, v_y, v_x*v_y, v_x^2, 0, 0, 0, 0, 0]
+        # A=[[1+v_y^2, v_x, v_y, v_x*v_y, v_x^2, 0, 0, 0, 0, 0]
         #   [1, 0, 0, 0, 0, v_x, v_y, v_x*v_y, v_x^2, v_y^2]
         #   [1+v_x^2, v_x, v_y, v_x*v_y, v_x^2, 0, 0, 0, 0, 0]
         #   [1, 0, 0, 0, 0, v_x, v_y, v_x*v_y, v_x^2, v_y^2]
