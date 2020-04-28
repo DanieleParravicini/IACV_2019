@@ -5,13 +5,16 @@ import ctypes
 import numpy as np
 import iris_position as ir_pos
 import cv2
+import mouse
 
-camera_number               = 0
+camera_number               = 1
 calibration_done            = False
 debug                       = False
-calibration_eye_point_left = []
+calibration_eye_point_left  = []
 calibration_eye_point_right = []
 calibration_point           = []
+x_l = [7850.48655679, -12548.91300924, -18726.75123879, 48410.8786089, -22059.98389676,  42999.98064041, -80240.74302094, -95256.41330096, -5406.1073288, 147919.86805479]   #calibration parameters for me to test overwritten by calibration
+x_r = [10630.97138329, -38618.71364649, 11160.83612252, -10236.84304062, 21051.47442785, -15257.93305172, -32495.67846243, 29940.21140659, 5565.69825958, 15524.04403917]
 
 class Home:
     def __init__(self, master):
@@ -22,8 +25,33 @@ class Home:
             tk.Label(self.frame, text="Calibration required before use:").pack(
                 side="top")
         self.butnew("Calibration", "2", Calibration)
-        self.butnew("Gaze Draw", "3", Application)
+        tk.Button(self.frame, text = "Gaze Mouse", command = self.mouseControl).pack()
         self.frame.pack()
+
+    def mouseControl(self):
+        self.master.iconify()
+        #Todo: here i compute and control the mouse position.
+        X_l = [[x_l[0], x_l[0]], [x_l[1], x_l[5]], [x_l[2], x_l[6]], [x_l[3], x_l[7]], [x_l[4], x_l[8]], [x_l[0], x_l[9]]]
+        X_r = [[x_r[0], x_r[0]], [x_r[1], x_r[5]], [x_r[2], x_r[6]], [x_r[3], x_r[7]], [x_r[4], x_r[8]], [x_r[0], x_r[9]]]
+        cap = cv2.VideoCapture(camera_number)
+
+        while True:
+            _, frame = cap.read()
+            iris_info = ir_pos.irides_position_form_video(frame)
+            try:
+                _, _, rel_l, rel_r = next(iris_info)
+                if(rel_l is None or rel_r is None):
+                    continue
+                iris_l_param = [1, rel_l[0], rel_l[1], rel_l[0]*rel_l[1], rel_l[0]**2, rel_l[1]**2]
+                iris_r_param = [1, rel_r[0], rel_r[1], rel_r[0]*rel_r[1], rel_r[0]**2, rel_r[1]**2]
+            except StopIteration:
+                pass
+
+            gaze_l = np.linalg.lstsq(X_l, iris_l_param, rcond=None)[0]
+            gaze_r = np.linalg.lstsq(X_r, iris_r_param, rcond=None)[0]
+            gaze = ((gaze_l+gaze_r)/2)*10**9
+            print(gaze)
+            mouse.move(gaze[0], gaze[1], absolute=True, duration=0)
 
     def butnew(self, text, number, _class):
         tk.Button(self.frame, text=text,
@@ -84,9 +112,8 @@ class Calibration:
         self.explanation.delete('1.0', tk.END)
         self.explanation.insert(tk.END, f"You have pressed {id_button}th point!\n Calibration started!")
         cap = cv2.VideoCapture(camera_number)
-       
     
-        n = 5
+        n = 60
         v_l = 0
         v_r = 0
         i = 0
@@ -146,7 +173,10 @@ class Calibration:
         #   [1, 0, 0, 0, 0, v_x, v_y, v_x*v_y, v_x^2, v_y^2]
         #x=[a_0, a_1, a_2, a_3, a_4, b_1, b_2, b_3, b_4, b_5]]
         #B=[s_x,s_y,s_x,s_y,s_x,s_y,s_x,s_y,s_x,s_y,s_x,s_y,s_x,s_y,s_x,s_y,s_x,s_y]
-        
+
+        global x_l
+        global x_r
+
         B = np.asarray(calibration_point).flatten()
         B=B.astype(int)
         #left eye
@@ -158,24 +188,10 @@ class Calibration:
         print('Calibration parameters for left eye: ' + str(x_l))
         print('Calibration parameters for right eye: ' + str(x_r))
         self.explanation.delete('1.0', tk.END)
-        self.explanation.insert(tk.END, f"Parameters succesfully computed!\nNow you can start using the gaze track.")
+        self.explanation.insert(tk.END, f"Parameters succesfully computed!\nNow you can start using the gaze mouse.")
 
     def close_window(self):
         calibration_done = True
-        self.master.destroy()
-class Application:
-    def __init__(self, master, number):
-        self.master = master
-        self.master.attributes('-fullscreen', True)
-        self.frame = tk.Frame(self.master)
-        self.explanation = tk.Text(self.frame, height="2", font="Helvetica")
-        self.explanation.pack()
-        self.explanation.insert(tk.END, "Here will appear the input typed!")
-        self.back = tk.Button(self.frame, text=f"<- Quit Keyboard App!", fg="red", command=self.close_window)
-        self.back.pack()
-        self.frame.pack()
-
-    def close_window(self):
         self.master.destroy()
 
 if __name__ == "__main__":
