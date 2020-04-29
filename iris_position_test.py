@@ -22,7 +22,7 @@ def json_string2image(string):
 
 def peek_point(event,x,y,flags,param):
     trigger, list_pts = param 
-    if event == cv2.EVENT_LBUTTONCLK:
+    if event == cv2.EVENT_LBUTTONDOWN:
         list_pts.append((x,y))
         trigger.set()
 
