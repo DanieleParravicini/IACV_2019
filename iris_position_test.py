@@ -6,7 +6,7 @@ import threading
 import iris_position as ir_pos
 
 
-directory_images    = 'iris_position_test_directory'
+directory_images = 'iris_position_test_directory_gio'
 left_eye_extreme1   = 'left_eye_extreme1'  
 left_eye_extreme2   = 'left_eye_extreme2'  
 left_eye_centre     = 'left_eye_centre'    
@@ -40,6 +40,8 @@ def fill_json_with_data_from_user(json_data):
             list_pts = []
             cv2.putText(img,  "In order indicate left_extreme_1, centre, left_extreme_2, then pass to right", (20,20),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.3, (209, 80, 0, 255), 1) 
+            cv2.namedWindow("image_to_be_annotated", cv2.WND_PROP_FULLSCREEN)
+            cv2.setWindowProperty("image_to_be_annotated", cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN)
             cv2.imshow('image_to_be_annotated', img)
             cv2.setMouseCallback('image_to_be_annotated',peek_point, param=(trigger,list_pts))
             
