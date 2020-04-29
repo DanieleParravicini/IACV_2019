@@ -13,7 +13,7 @@ left_eye_centre     = 'left_eye_centre'
 right_eye_extreme1  = 'right_eye_extreme1' 
 right_eye_extreme2  = 'right_eye_extreme2' 
 right_eye_centre    = 'right_eye_centre'   
-delay_to_see_debug  = 5000
+delay_to_see_debug  = 2000
 def image2json_string(image):
     return json.dumps(np.array(image).tolist())
 
@@ -22,7 +22,7 @@ def json_string2image(string):
 
 def peek_point(event,x,y,flags,param):
     trigger, list_pts = param 
-    if event == cv2.EVENT_LBUTTONDBLCLK:
+    if event == cv2.EVENT_LBUTTONCLK:
         list_pts.append((x,y))
         trigger.set()
 
@@ -69,11 +69,12 @@ def fill_json_with_data_from_user(json_data):
             # print(list_pts) # peek data
             data_for_json = {}
             data_for_json[left_eye_extreme1     ]= list_pts[0]
-            data_for_json[left_eye_centre       ]= list_pts[2]
-            data_for_json[left_eye_extreme2     ]= list_pts[1]
+            data_for_json[left_eye_centre       ]= list_pts[1]
+            data_for_json[left_eye_extreme2     ]= list_pts[2]
             data_for_json[right_eye_extreme1    ]= list_pts[3]
-            data_for_json[right_eye_extreme2    ]= list_pts[5]
             data_for_json[right_eye_centre      ]= list_pts[4]
+            data_for_json[right_eye_extreme2    ]= list_pts[5]
+            
             # fill json 
             json_data[filename] = data_for_json
 
