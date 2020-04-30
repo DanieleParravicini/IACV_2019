@@ -4,9 +4,9 @@ import os
 import cv2
 import threading
 import iris_position as ir_pos
+from time import gmtime, strftime
 
-
-directory_images = 'iris_position_test_directory_gio'
+directory_images    = 'iris_position_test_directory'
 left_eye_extreme1   = 'left_eye_extreme1'  
 left_eye_extreme2   = 'left_eye_extreme2'  
 left_eye_centre     = 'left_eye_centre'    
@@ -14,6 +14,7 @@ right_eye_extreme1  = 'right_eye_extreme1'
 right_eye_extreme2  = 'right_eye_extreme2' 
 right_eye_centre    = 'right_eye_centre'   
 delay_to_see_debug  = 2000
+
 def image2json_string(image):
     return json.dumps(np.array(image).tolist())
 
@@ -24,6 +25,9 @@ def peek_point(event,x,y,flags,param):
     trigger, list_pts = param 
     if event == cv2.EVENT_LBUTTONDOWN:
         list_pts.append((x,y))
+        trigger.set()
+    elif event == cv2.EVENT_RBUTTONDOWN and len(list_pts)>0:
+        del list_pts[-1]
         trigger.set()
 
 def fill_json_with_data_from_user(json_data):
@@ -57,11 +61,12 @@ def fill_json_with_data_from_user(json_data):
                             exit(1)
                         
                 #draw new point
-                cv2.circle(img,list_pts[-1],2,(0,0,255),-1)
+                tmp = draw_points(img, list_pts)
+                
                 #reset trigger
                 trigger.clear()
                 #repaint
-                cv2.imshow('image_to_be_annotated', img)
+                cv2.imshow('image_to_be_annotated', tmp)
                 
 
             cv2.destroyWindow('image_to_be_annotated')
@@ -119,8 +124,38 @@ def test_data(json_data, debug=False):
     sample_right_abs_err    = err_right_abs/len(json_data.keys())
     print('Sample error left: ',sample_left_abs_err,'\t right:', sample_right_abs_err)
 
+def draw_points(img, points):
+    tmp =  np.array(img)
+    for p in points:
+        cv2.circle(tmp,p,2,(0,0,255),-1)
+    
+    return tmp
+
+def collect_photo(camera):
+    end = True
+    
+    while (end):
+
+        cap = cv2.VideoCapture(camera)
+        _, frame        = cap.read()
+        cap.release()
+
+        photo_name      = strftime("photo %Y-%m-%d %H-%M-%S.jpg", gmtime())
+        photo_abs_path  = os.path.join(directory_images, photo_name)
+        cv2.imwrite(photo_abs_path, frame)
+        cv2.imshow('taken',frame)
+        
+        key = cv2.waitKey(1000)
+        if key == 27:
+            end = False
 
 if __name__ == "__main__":
+    capture_images = False
+    camera         = 'http://192.168.0.6:8080/videofeed'
+    
+    if  capture_images:
+        collect_photo(camera)
+
     json_data = {}
     json_path = os.path.join(directory_images,'json.json')
     #open already collected data
