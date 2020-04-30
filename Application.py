@@ -13,12 +13,11 @@ debug                       = False
 calibration_eye_point_left  = []
 calibration_eye_point_right = []
 calibration_point           = []
-x_l = [-32135.00893827, 100083.69427809,  85509.40189455, -198923.71419596,
-       -21350.62179516, -3015.41128191, 131978.89576158, -3424.1461178,
-       9605.44074001, -131035.97242032]  # calibration parameters for me to test overwritten by calibration
-x_r = [-18417.29918659, 78282.52187778, -12735.70671031, 33758.59163978,
-       -77485.32031864, 63486.07953807, 5302.47117536, -67208.48323979,
-       -31413.2896205, 36351.51290157]
+#x_l = [788.83569323, -1864.62986779, 7511.81004873, -20722.69084935, 4419.24471401, -1900.23835635, -5613.35123008, 85767.55041025, -46978.37603168, -23478.1630365]  # calibration parameters for me to test overwritten by calibration
+#x_r = [976.19248026, 4989.40397841, 4598.99944016, -20727.05497126, -3023.62783183, 10482.96314502, -14402.16369339, -30344.84762274, 1588.7347783, 32797.23808307]
+x_l = [4345.72378965, -13689.7759815, -9581.0823355, 46100.87408067, -16833.59181134, -43571.70242215, 22602.53804898, 157015.11947266, -28691.93582351, -100083.86167376]
+x_r = [1837.01134574, 597.13590803, 2654.92980602, -8946.69742881, -3511.28005365, -3183.2087794, 6434.38467014, -6705.20414857, 6594.92066802, -18056.1286827]
+
 
 class Home:
     def __init__(self, master):
@@ -30,6 +29,7 @@ class Home:
                 side="top")
         self.butnew("Calibration", "2", Calibration)
         tk.Button(self.frame, text = "Gaze Mouse", command = self.mouseControl).pack()
+        self.butnew("Precision Test", "3", Precision)
         self.frame.pack()
 
     def mouseControl(self):
@@ -48,11 +48,11 @@ class Home:
                     continue
                 iris_l_param = np.array([1, rel_l[0], rel_l[1], rel_l[0]*rel_l[1], rel_l[0]**2, rel_l[1]**2])
                 iris_r_param = np.array([1, rel_r[0], rel_r[1], rel_r[0]*rel_r[1], rel_r[0]**2, rel_r[1]**2])
-                print(iris_l_param)
+                #print(iris_l_param)
                 gaze_l = X_l.dot(iris_l_param)
                 gaze_r = X_r.dot(iris_r_param)
                 gaze = abs(((gaze_l+gaze_r)/2))
-                #print(gaze)
+                print(gaze)
                 mouse.move(gaze[0], gaze[1], absolute=True, duration=0)
             except StopIteration:
                 pass
@@ -194,6 +194,103 @@ class Calibration:
         print('Calibration parameters for right eye: ' + str(x_r))
         self.explanation.delete('1.0', tk.END)
         self.explanation.insert(tk.END, f"Parameters succesfully computed!\nNow you can start using the gaze mouse.")
+
+    def close_window(self):
+        calibration_done = True
+        self.master.destroy()
+
+
+class Precision:
+    def __init__(self, master, number):
+        self.master = master
+        self.master.attributes('-fullscreen', True)
+        self.frame = tk.Frame(self.master)
+        self.explanation = tk.Text(self.frame, height="2", font="Helvetica")
+        self.explanation.pack()
+        self.explanation.insert(
+            tk.END, "You have to click in order on the red dot in sequence and wait!")
+        self.back = tk.Button(
+            self.frame, text=f"<- Quit Precision Test!", fg="red", command=self.close_window)
+        self.back.pack()
+        self.calibration_points()
+        self.frame.pack()
+
+    def create_circle(self, x, y, canvas):  # center coordinates, radius
+        r = 5
+        x0 = x - r
+        y0 = y - r
+        x1 = x + r
+        y1 = y + r
+        return canvas.create_oval(x0, y0, x1, y1, fill="red", activefill='orange')
+
+    def drawCircle(self, x, y, row, column):
+        self.circular_button = self.create_circle(x, y, self.canvas)
+        button_number = column+(row-1)*3
+        self.canvas.create_text(x, y-15, text=f"{button_number}")
+        self.canvas.tag_bind(self.circular_button, "<Button-1>", lambda event,
+                             circle_button=self.circular_button: self.compute_precision(event, button_number))
+
+    def calibration_points(self):
+        self.canvas = tk.Canvas(self.master)
+        user32 = ctypes.windll.user32
+        padding = 100
+        x = (user32.GetSystemMetrics(0)-2*padding)/2
+        y = (user32.GetSystemMetrics(1)-2*padding)/2
+        for row in range(3):
+            for column in range(3):
+                self.drawCircle(x*column+padding, y*row + padding, row+1, column+1)
+                point = (x*column+padding, y*row+padding)
+                calibration_point.append(point)
+        self.canvas.pack(fill=tk.BOTH, expand=1)
+
+    def compute_precision(self, event, id_button):
+        self.explanation.delete('1.0', tk.END)
+        self.explanation.insert(
+            tk.END, f"You have pressed {id_button}th point!\n Precision Test started!")
+        X_l = np.array([[x_l[0], x_l[1], x_l[2], x_l[3], x_l[4], x_l[0]], [
+                       x_l[0], x_l[5], x_l[6], x_l[7], x_l[8], x_l[9]]])
+        X_r = np.array([[x_r[0], x_r[1], x_r[2], x_r[3], x_r[4], x_r[0]], [
+                       x_r[0], x_r[5], x_r[6], x_r[7], x_r[8], x_r[9]]])
+        cap = cv2.VideoCapture(camera_number)
+
+        n = 60
+        v_l = 0
+        v_r = 0
+        i = 0
+        avg_error_l = 0
+        avg_error_r = 0
+        avg_error = 0
+        while(i < n):  # average out 5 consequents values
+            _, frame = cap.read()
+            iris_info = ir_pos.irides_position_form_video(frame)
+            try:
+                _, _, rel_l, rel_r = next(iris_info)
+                if(rel_l is None or rel_r is None):
+                    continue
+                iris_l_param = np.array(
+                    [1, rel_l[0], rel_l[1], rel_l[0]*rel_l[1], rel_l[0]**2, rel_l[1]**2])
+                iris_r_param = np.array(
+                    [1, rel_r[0], rel_r[1], rel_r[0]*rel_r[1], rel_r[0]**2, rel_r[1]**2])
+                #print(iris_l_param)
+                gaze_l = X_l.dot(iris_l_param)
+                gaze_r = X_r.dot(iris_r_param)
+                gaze = abs(((gaze_l+gaze_r)/2))
+                #TODO: here i compute the error
+                error_l = abs(gaze_l-calibration_point[id_button-1])
+                error_r = abs(gaze_r-calibration_point[id_button-1])
+                error = abs(gaze-calibration_point[id_button-1])
+                avg_error_l = (avg_error_l+error_l)/2
+                avg_error_r = (avg_error_r+error_l)/2
+                avg_error = (avg_error+error_l)/2
+                i += 1
+            except StopIteration:
+                pass
+        print('-------------------------------'+ str(id_button) +'------------------------------------')
+        print('Expected value: ' +str(calibration_point[id_button-1]))
+        print('Computed gaze: ' + str(gaze))
+        print('Avg_error_l, Avg_error_r, Avg_error')
+        print(avg_error_l, avg_error_r, avg_error)
+        cap.release()
 
     def close_window(self):
         calibration_done = True
