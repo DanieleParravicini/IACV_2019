@@ -80,7 +80,7 @@ class ImageGet:
         self.explanation.insert(tk.END, f"You have pressed {id_button}th point!\n Calibration started!")
         cap = cv2.VideoCapture(camera_number)
         _, frame = cap.read()
-         date_str = strftime("%Y-%m-%d-%H-%M-%S", gmtime())
+        date_str = strftime("%Y-%m-%d-%H-%M-%S", gmtime())
         cv2.imwrite("iris_position_test_directory_gio/%d_image%s.jpg" %
                     (id_button,date_str), frame)
         cap.release()
