@@ -6,6 +6,7 @@ import numpy as np
 import iris_position as ir_pos
 import cv2
 import mouse
+import pyautogui
 
 camera_number               = 1
 calibration_done            = False
@@ -49,11 +50,21 @@ class Home:
                 iris_l_param = np.array([1, rel_l[0], rel_l[1], rel_l[0]*rel_l[1], rel_l[0]**2, rel_l[1]**2])
                 iris_r_param = np.array([1, rel_r[0], rel_r[1], rel_r[0]*rel_r[1], rel_r[0]**2, rel_r[1]**2])
                 #print(iris_l_param)
-                gaze_l = X_l.dot(iris_l_param)
-                gaze_r = X_r.dot(iris_r_param)
-                gaze = abs(((gaze_l+gaze_r)/2))
-                print(gaze)
-                mouse.move(gaze[0], gaze[1], absolute=True, duration=0)
+                #gaze_l = X_l.dot(iris_l_param)
+                #gaze_r = X_r.dot(iris_r_param)
+                #gaze = abs(((gaze_l+gaze_r)/2))
+                #print(gaze_l)
+
+                #gaze alternative test
+                ir_avg = ((rel_l+rel_r)/2)-0.2
+                mouse_x = (1824*ir_avg[0])/0.5
+                mouse_y = (2736*ir_avg[1])/0.5
+                mouse.move(mouse_x, mouse_y, absolute=True, duration=0)
+                print(rel_l, rel_r)
+
+                #if(np.all(gaze_l > 0)):
+                    #mouse.move(mouse_x, mouse_y, absolute=True, duration=0)
+                #    pyautogui.moveTo(gaze_l[0], gaze_l[1]) #test with another library
             except StopIteration:
                 pass
 
@@ -118,7 +129,7 @@ class Calibration:
         self.explanation.insert(tk.END, f"You have pressed {id_button}th point!\n Calibration started!")
         cap = cv2.VideoCapture(camera_number)
     
-        n = 60
+        n = 1
         v_l = 0
         v_r = 0
         i = 0
@@ -139,7 +150,7 @@ class Calibration:
 
         v_l = v_l/n
         v_r = v_r/n
-
+        print(v_l, v_r)
         cap.release()
 
         calibration_eye_point_left.append(np.array([1+v_l[1]**2, v_l[0], v_l[1], v_l[0]*v_l[1], v_l[0]**2, 0, 0, 0, 0, 0]))
@@ -254,8 +265,6 @@ class Precision:
         cap = cv2.VideoCapture(camera_number)
 
         n = 60
-        v_l = 0
-        v_r = 0
         i = 0
         avg_error_l = 0
         avg_error_r = 0
