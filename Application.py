@@ -90,7 +90,7 @@ class Calibration:
         self.frame.pack()
 
     def create_circle(self, x, y, canvas):  # center coordinates, radius
-        r = 5
+        r = 10
         x0 = x - r
         y0 = y - r
         x1 = x + r
@@ -114,7 +114,7 @@ class Calibration:
     def calibration_points(self):
         self.canvas = tk.Canvas(self.master)
         user32 = ctypes.windll.user32
-        padding = 100
+        padding = 150
         x = (user32.GetSystemMetrics(0)-2*padding)/2
         y = (user32.GetSystemMetrics(1)-2*padding)/2
         for row in range(3):
@@ -129,7 +129,7 @@ class Calibration:
         self.explanation.insert(tk.END, f"You have pressed {id_button}th point!\n Calibration started!")
         cap = cv2.VideoCapture(camera_number)
     
-        n = 1
+        n = 5
         v_l = 0
         v_r = 0
         i = 0
@@ -137,20 +137,20 @@ class Calibration:
             _, frame   = cap.read()
             iris_info  = ir_pos.irides_position_form_video(frame)
             try:
-                _, _, rel_l, rel_r = next(iris_info)
+                abs_l, abs_r, rel_l, rel_r = next(iris_info)
                 if(rel_l is None or rel_r is None ):
                     continue
 
-                v_l                 += rel_l
-                v_r                 += rel_r
+                v_l                 += abs_l
+                v_r                 += abs_r
                 i                   += 1
-                
+                #print(abs_l, abs_r)
             except StopIteration:
                 pass
-
+       
         v_l = v_l/n
         v_r = v_r/n
-        print(v_l, v_r)
+        #print(v_l, v_r)
         cap.release()
 
         calibration_eye_point_left.append(np.array([1+v_l[1]**2, v_l[0], v_l[1], v_l[0]*v_l[1], v_l[0]**2, 0, 0, 0, 0, 0]))
@@ -198,11 +198,15 @@ class Calibration:
         #left eye
         A_l = np.vstack(calibration_eye_point_left)
         x_l = np.linalg.lstsq(A_l, B, rcond=None)[0]
+        print(A_l.dot(x_l))
+        print('Good: ', B)
         #right eye
         A_r = np.vstack(calibration_eye_point_right)
         x_r = np.linalg.lstsq(A_r, B, rcond=None)[0]
-        print('Calibration parameters for left eye: ' + str(x_l))
-        print('Calibration parameters for right eye: ' + str(x_r))
+        print(A_r.dot(x_r))
+        print('Good: ', B)
+        #print('Calibration parameters for left eye: ' + str(x_l))
+        #print('Calibration parameters for right eye: ' + str(x_r))
         self.explanation.delete('1.0', tk.END)
         self.explanation.insert(tk.END, f"Parameters succesfully computed!\nNow you can start using the gaze mouse.")
 
@@ -227,7 +231,7 @@ class Precision:
         self.frame.pack()
 
     def create_circle(self, x, y, canvas):  # center coordinates, radius
-        r = 5
+        r = 10
         x0 = x - r
         y0 = y - r
         x1 = x + r
@@ -244,7 +248,7 @@ class Precision:
     def calibration_points(self):
         self.canvas = tk.Canvas(self.master)
         user32 = ctypes.windll.user32
-        padding = 100
+        padding = 150
         x = (user32.GetSystemMetrics(0)-2*padding)/2
         y = (user32.GetSystemMetrics(1)-2*padding)/2
         for row in range(3):

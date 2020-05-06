@@ -3,6 +3,7 @@ import numpy as np
 import os
 import cv2
 import threading
+import dlib
 import iris_position as ir_pos
 from time import gmtime, strftime
 
@@ -13,7 +14,7 @@ left_eye_centre     = 'left_eye_centre'
 right_eye_extreme1  = 'right_eye_extreme1' 
 right_eye_extreme2  = 'right_eye_extreme2' 
 right_eye_centre    = 'right_eye_centre'   
-delay_to_see_debug  = 2000
+delay_to_see_debug  = 5000
 
 def image2json_string(image):
     return json.dumps(np.array(image).tolist())
@@ -83,6 +84,19 @@ def fill_json_with_data_from_user(json_data):
             # fill json 
             json_data[filename] = data_for_json
 
+def printLandmarks(frame):
+    frame = np.array(frame)
+    frame_equalized = ir_pos.clahe(frame)
+    gray = cv2.cvtColor(frame_equalized, cv2.COLOR_BGR2GRAY)
+    faces = detector(gray)
+
+    for i, face in enumerate(faces):
+        landmarks = predictor(frame_equalized, face)
+        landmarks = ir_pos.face_utils.shape_to_np(landmarks)
+        for (x, y) in landmarks:
+            cv2.circle(frame, (x, y), 1, (0, 0, 255), -1)
+    return frame
+    
 def test_data(json_data, debug=False):
     err_left_abs    = 0
     err_right_abs   = 0
@@ -104,9 +118,18 @@ def test_data(json_data, debug=False):
             centre_right_expected   = json_data[filename][right_eye_centre ] 
 
             if debug:
+                eye_left_extreme1_expected = json_data[filename][left_eye_extreme1]
+                eye_left_extreme2_expected = json_data[filename][left_eye_extreme2]
+                eye_right_extreme1_expected = json_data[filename][right_eye_extreme1]
+                eye_right_extreme2_expected = json_data[filename][right_eye_extreme2]
+                tmp = printLandmarks(img)
                 #green groud truth
-                tmp = cv2.circle(img, tuple(centre_left_expected                    ),1,(0,255,0),1)
+                tmp = cv2.circle(tmp, tuple(centre_left_expected                    ),1,(0,255,0),1)
                 tmp = cv2.circle(tmp, tuple(centre_right_expected                   ),1,(0,255,0),1)
+                tmp = cv2.circle(tmp, tuple(eye_left_extreme1_expected                   ),1,(0,255,0),1)
+                tmp = cv2.circle(tmp, tuple(eye_left_extreme2_expected                   ),1,(0,255,0),1)
+                tmp = cv2.circle(tmp, tuple(eye_right_extreme1_expected                  ), 1, (0, 255, 0), 1)
+                tmp = cv2.circle(tmp, tuple(eye_right_extreme2_expected                  ), 1, (0, 255, 0), 1)
                 #red predicted
                 tmp = cv2.circle(tmp, tuple(centre_left_predicted.astype(np.int)    ),1,(0,0,255),1)
                 tmp = cv2.circle(tmp, tuple(centre_right_predicted.astype(np.int)   ),1,(0,0,255),1)
@@ -131,6 +154,7 @@ def draw_points(img, points):
     
     return tmp
 
+
 def collect_photo(camera):
     end = True
     
@@ -148,6 +172,10 @@ def collect_photo(camera):
         key = cv2.waitKey(1000)
         if key == 27:
             end = False
+
+
+detector  = dlib.get_frontal_face_detector()
+predictor = dlib.shape_predictor("shape_predictor_68_face_landmarks.dat")
 
 if __name__ == "__main__":
     capture_images = False
@@ -171,4 +199,8 @@ if __name__ == "__main__":
     json_fd.close()
 
     test_data(json_data, True)
-    
+
+
+
+
+
