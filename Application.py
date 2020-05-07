@@ -44,18 +44,23 @@ class Home:
             iris_info = ir_pos.irides_position_form_video(frame)
             try:
                 abs_l, abs_r, rel_l, rel_r = next(iris_info)
-                rel_r = abs_l
-                rel_r = abs_r
+                v_l = rel_l
+                v_r = rel_r
                 if(rel_l is None or rel_r is None):
                     continue
-
-                iris_l_param = np.array([1, rel_l[0], rel_l[1], rel_l[0]*rel_l[1], rel_l[0]**2, rel_l[1]**2])
-                iris_r_param = np.array([1, rel_r[0], rel_r[1], rel_r[0]*rel_r[1], rel_r[0]**2, rel_r[1]**2])
-                print(iris_l_param)
-                gaze_l = X_l.dot(iris_l_param)
-                gaze_r = X_r.dot(iris_r_param)
-                gaze = (((gaze_l+gaze_r)/2))
-                mouse.move(gaze[0], gaze[1], absolute=True, duration=0)
+            
+               
+                iris_l_param_x = np.array([1+v_l[1]**2, v_l[0], v_l[1], v_l[0]*v_l[1], v_l[0]**2, 0, 0, 0, 0, 0])
+                iris_l_param_y = np.array([1, 0, 0, 0, 0, v_l[0], v_l[1], v_l[0]*v_l[1], v_l[0]**2, v_l[1]**2])
+                iris_r_param_x = np.array([1+v_r[1]**2, v_r[0], v_r[1], v_r[0]*v_r[1], v_r[0]**2, 0, 0, 0, 0, 0])
+                iris_r_param_y = np.array([1, 0, 0, 0, 0, v_r[0], v_r[1], v_r[0]*v_r[1], v_r[0]**2, v_r[1]**2])
+                A_l = np.vstack([iris_l_param_x, iris_l_param_y])
+                A_r = np.vstack([iris_r_param_x, iris_r_param_y])
+                
+                gaze_l = A_l.dot(x_l)
+                gaze_r = A_r.dot(x_r)
+                #gaze = (((gaze_l+gaze_r)/2))
+                mouse.move(gaze_l[0], gaze_l[1], absolute=True, duration=0)
                 #print(gaze_l)
 
                 #gaze alternative test
@@ -144,8 +149,8 @@ class Calibration:
                 if any( [el is None for el in [abs_l, abs_r, rel_l, rel_r ]]):
                     continue
 
-                v_l                 += abs_l
-                v_r                 += abs_r
+                v_l                 += rel_r
+                v_r                 += rel_r
                 i                   += 1
                 #print(abs_l, abs_r)
             except StopIteration:
