@@ -6,6 +6,7 @@ import threading
 import dlib
 import iris_position as ir_pos
 from time import gmtime, strftime
+import settings
 
 directory_images    = 'iris_position_test_directory'
 left_eye_extreme1   = 'left_eye_extreme1'  
@@ -112,6 +113,10 @@ def test_data(json_data, debug=False):
             if not flag_first:
                 print("WARNING:" , filename, "\t multiple faces detected")
             abs_left, abs_right, rel_left, rel_right = p
+            if any( elem is None for elem in [abs_left, abs_right, rel_left, rel_right] ) :
+                print("WARNING:" , filename, "\t some iris position is missing")
+                flag_first = False
+                continue
             centre_left_predicted   = np.array(abs_left[:2])
             centre_right_predicted  = np.array(abs_right[:2])
             centre_left_expected    = json_data[filename][left_eye_centre  ]
@@ -126,10 +131,10 @@ def test_data(json_data, debug=False):
                 #green groud truth
                 tmp = cv2.circle(tmp, tuple(centre_left_expected                    ),1,(0,255,0),1)
                 tmp = cv2.circle(tmp, tuple(centre_right_expected                   ),1,(0,255,0),1)
-                tmp = cv2.circle(tmp, tuple(eye_left_extreme1_expected                   ),1,(0,255,0),1)
-                tmp = cv2.circle(tmp, tuple(eye_left_extreme2_expected                   ),1,(0,255,0),1)
-                tmp = cv2.circle(tmp, tuple(eye_right_extreme1_expected                  ), 1, (0, 255, 0), 1)
-                tmp = cv2.circle(tmp, tuple(eye_right_extreme2_expected                  ), 1, (0, 255, 0), 1)
+                tmp = cv2.circle(tmp, tuple(eye_left_extreme1_expected              ),1,(0,255,0),1)
+                tmp = cv2.circle(tmp, tuple(eye_left_extreme2_expected              ),1,(0,255,0),1)
+                tmp = cv2.circle(tmp, tuple(eye_right_extreme1_expected             ), 1, (0, 255, 0), 1)
+                tmp = cv2.circle(tmp, tuple(eye_right_extreme2_expected             ), 1, (0, 255, 0), 1)
                 #red predicted
                 tmp = cv2.circle(tmp, tuple(centre_left_predicted.astype(np.int)    ),1,(0,0,255),1)
                 tmp = cv2.circle(tmp, tuple(centre_right_predicted.astype(np.int)   ),1,(0,0,255),1)
@@ -179,10 +184,10 @@ predictor = dlib.shape_predictor("shape_predictor_68_face_landmarks.dat")
 
 if __name__ == "__main__":
     capture_images = False
-    camera         = 'http://192.168.0.6:8080/videofeed'
+    
     
     if  capture_images:
-        collect_photo(camera)
+        collect_photo(settings.camera)
 
     json_data = {}
     json_path = os.path.join(directory_images,'json.json')

@@ -6,9 +6,8 @@ import numpy as np
 import iris_position as ir_pos
 import cv2
 import mouse
-import pyautogui
+import settings 
 
-camera_number               = 1
 calibration_done            = False
 debug                       = False
 calibration_eye_point_left  = []
@@ -38,28 +37,32 @@ class Home:
         #Todo: here i compute and control the mouse position.
         X_l = np.array([[x_l[0], x_l[1], x_l[2], x_l[3], x_l[4], x_l[0]], [x_l[0], x_l[5], x_l[6], x_l[7], x_l[8], x_l[9]]])
         X_r = np.array([[x_r[0], x_r[1], x_r[2], x_r[3], x_r[4], x_r[0]], [x_r[0], x_r[5], x_r[6], x_r[7], x_r[8], x_r[9]]])
-        cap = cv2.VideoCapture(camera_number)
+        cap = cv2.VideoCapture(settings.camera)
 
-        while True:
+        for  i in range(100):
             _, frame = cap.read()
             iris_info = ir_pos.irides_position_form_video(frame)
             try:
-                _, _, rel_l, rel_r = next(iris_info)
+                abs_l, abs_r, rel_l, rel_r = next(iris_info)
+                rel_r = abs_l
+                rel_r = abs_r
                 if(rel_l is None or rel_r is None):
                     continue
+
                 iris_l_param = np.array([1, rel_l[0], rel_l[1], rel_l[0]*rel_l[1], rel_l[0]**2, rel_l[1]**2])
                 iris_r_param = np.array([1, rel_r[0], rel_r[1], rel_r[0]*rel_r[1], rel_r[0]**2, rel_r[1]**2])
-                #print(iris_l_param)
-                #gaze_l = X_l.dot(iris_l_param)
-                #gaze_r = X_r.dot(iris_r_param)
-                #gaze = abs(((gaze_l+gaze_r)/2))
+                print(iris_l_param)
+                gaze_l = X_l.dot(iris_l_param)
+                gaze_r = X_r.dot(iris_r_param)
+                gaze = (((gaze_l+gaze_r)/2))
+                mouse.move(gaze[0], gaze[1], absolute=True, duration=0)
                 #print(gaze_l)
 
                 #gaze alternative test
-                ir_avg = ((rel_l+rel_r)/2)-0.2
-                mouse_x = (1824*ir_avg[0])/0.5
-                mouse_y = (2736*ir_avg[1])/0.5
-                mouse.move(mouse_x, mouse_y, absolute=True, duration=0)
+                ##ir_avg = ((rel_l+rel_r)/2)-0.2
+                #mouse_x = (1824*ir_avg[0])/0.5
+                #mouse_y = (2736*ir_avg[1])/0.5
+                #mouse.move(mouse_x, mouse_y, absolute=True, duration=0)
                 print(rel_l, rel_r)
 
                 #if(np.all(gaze_l > 0)):
@@ -127,7 +130,7 @@ class Calibration:
     def calibrate(self, event, id_button):
         self.explanation.delete('1.0', tk.END)
         self.explanation.insert(tk.END, f"You have pressed {id_button}th point!\n Calibration started!")
-        cap = cv2.VideoCapture(camera_number)
+        cap = cv2.VideoCapture(settings.camera)
     
         n = 5
         v_l = 0
@@ -138,7 +141,7 @@ class Calibration:
             iris_info  = ir_pos.irides_position_form_video(frame)
             try:
                 abs_l, abs_r, rel_l, rel_r = next(iris_info)
-                if(rel_l is None or rel_r is None ):
+                if any( [el is None for el in [abs_l, abs_r, rel_l, rel_r ]]):
                     continue
 
                 v_l                 += abs_l
@@ -198,13 +201,13 @@ class Calibration:
         #left eye
         A_l = np.vstack(calibration_eye_point_left)
         x_l = np.linalg.lstsq(A_l, B, rcond=None)[0]
-        print(A_l.dot(x_l))
-        print('Good: ', B)
+        
+        print('left: ', list(zip(A_l.dot(x_l), B)))
         #right eye
         A_r = np.vstack(calibration_eye_point_right)
         x_r = np.linalg.lstsq(A_r, B, rcond=None)[0]
-        print(A_r.dot(x_r))
-        print('Good: ', B)
+        
+        print('right: ', list(zip(A_r.dot(x_r),B)))
         #print('Calibration parameters for left eye: ' + str(x_l))
         #print('Calibration parameters for right eye: ' + str(x_r))
         self.explanation.delete('1.0', tk.END)
@@ -266,7 +269,7 @@ class Precision:
                        x_l[0], x_l[5], x_l[6], x_l[7], x_l[8], x_l[9]]])
         X_r = np.array([[x_r[0], x_r[1], x_r[2], x_r[3], x_r[4], x_r[0]], [
                        x_r[0], x_r[5], x_r[6], x_r[7], x_r[8], x_r[9]]])
-        cap = cv2.VideoCapture(camera_number)
+        cap = cv2.VideoCapture(settings.camera)
 
         n = 60
         i = 0

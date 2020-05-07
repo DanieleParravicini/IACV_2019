@@ -11,6 +11,8 @@ import numpy as np
 import scipy
 import matplotlib
 import matplotlib.pyplot as plt
+import settings
+import itertools
 
 
 from scipy.signal import find_peaks
@@ -99,7 +101,7 @@ def segment_eye(frame, eye_landmarks, square):
     2. mask which pixel has to be considered
     3. top,left coordinates w.r.t. original image
     """
-    padx, pady = (1,-1)
+    padx, pady = (3,3)
     eye_pts    = np.array(list(map(lambda p: list(p.ravel()), eye_landmarks)))
 
 
@@ -275,102 +277,100 @@ def VPF_y(img, mask, y, IPF):
     delta = delta*np.transpose(mask[y,:]) 
     return (delta).sum() / mask[y,:].sum() 
 
-def HPF_boundaries(img,GPF_values, greatest_delta, th_factor, delta, debug):
-    min_eye_width = max(img.shape[0]//2,1)
-    peak    = True
-    debug   = False
-
+def HPF_boundaries(img,GPF_values,IPF_values, debug=False):
+    
+    approximate_eye_width   = img.shape[0]
+    
+    min_eye_width           = max(approximate_eye_width*0.6,1)
+    max_eye_width           = max(approximate_eye_width*1.2,1)
+    #print('between ', min_eye_width, ' and ', max_eye_width)
+    #if min_eye_width < 3:
+    #    return None,None
+    
+    minimum_peak_prominence = 0.5
+    
     if debug:
-
+        #this is done in order to not force square pixels in the image
         vertical = (img.shape[0] == len(GPF_values))
-        gs_kw  = dict(width_ratios=[1], height_ratios=[1,1, img.shape[1]/img.shape[0] if vertical else 1 ])
-        _, axs = plt.subplots(ncols=1, nrows=3, constrained_layout=True,  gridspec_kw=gs_kw)
-        
-        #plt.gca().set_aspect('equal', adjustable='box')
+        gs_kw  = dict(width_ratios=[1], height_ratios=[1,1, 1,img.shape[1]/img.shape[0] if vertical else 1 ])
+        _, axs = plt.subplots(ncols=1, nrows=4, constrained_layout=True,  gridspec_kw=gs_kw)
         axs[0].plot(GPF_values,'r')
+        axs[1].plot(IPF_values,'g')
 
-    #obtain 
-    if greatest_delta:
-        #first detect peaks
-        peaks, peak_properties  = find_peaks(GPF_values,prominence=0.5, distance=min_eye_width)
-
-        
-        n_peaks_to_fit_iris = 2
-        if(len(peaks) >= n_peaks_to_fit_iris and peak ):
-         
-            #plot detected peaks
-            if(debug):
-                for p in peaks:
-                    axs[0].axvline(p, color='r')
-            #take 4 peaks with greatest "prominence", i.e. greatest elevation w.r.t. their neighbourhood
-            prominences = peak_properties["prominences"]
-            #to extract the 4 peaks with greatest prominence 
-            # we can exploit parition  which does this efficiently.
-            # the only problem is that order only from the lowest to the highest 
-            # Hence, in order to obtain the peaks with greatest prominence just multply by -1
-            #-1 because partition sort from lowest to greatest number
-            peak_indices    = np.argpartition(-1*prominences, n_peaks_to_fit_iris-1)[:n_peaks_to_fit_iris]
-            peaks_location  = [peaks[i] for i in peak_indices] 
-            sorted_peak_location = sorted(peaks_location)
-
-            #plot detected peaks
-            if(debug):
-                for p in peaks_location:
-                    axs[0].axvline(p, color='g')
-
-            first   = sorted_peak_location[n_peaks_to_fit_iris// 2 -1]
-            second  = sorted_peak_location[n_peaks_to_fit_iris//2]
-        else:
-            print("I should have used peaks but not enough info were given :(")
-            GPF_delta  = (np.gradient(GPF_values,delta,axis=0))
-
-            #1 step derivative
-            #IPF_delta  = (list(map(lambda y,y_1: y_1-y, IPF_values[:-1], IPF_values[1:])))
+    #first detect topmost n peaks
+    peaks, peak_properties  = find_peaks(GPF_values,prominence=minimum_peak_prominence, distance=approximate_eye_width//4)
+    #plot detected peaks
+    if(debug):
+        for p in peaks:
+            for ax in axs[:-1]:
+                ax.axvline(p, color='r')
+    n_top_peaks             = 6
     
-            s           = sorted(enumerate(GPF_delta), key=lambda x: x[1], reverse=True)
-            first       = s[0][0]
-            s_filtered  = list(filter(lambda e: abs(e[0]-first)>= min_eye_width,s))
-            second      = s_filtered[-1][0]
 
-            if debug:
-                axs[1].plot(GPF_delta ,'g')
+    if len(peaks) >= n_top_peaks :
+        #take n_top_most peaks with greatest "prominence", i.e. greatest elevation w.r.t. their neighbourhood
+        prominences = peak_properties["prominences"]
+       
+        #to extract thhe elements
+        peak_indices         = np.argpartition(-1*prominences, n_top_peaks-1)[:n_top_peaks]
+        peaks_location       = [peaks[i] for i in peak_indices] 
+        peaks                = sorted(peaks_location)
 
+    pad = 2
+    boundaries_positions = list(itertools.chain([pad],peaks,[len(GPF_values)-pad]))
+
+    #plot selected boundaries
+    if(debug):
+        for p in boundaries_positions:
+            for ax in axs[:-1]:
+                ax.axvline(p, color='g')
+
+    possible_boundaries = [(a, b) for a in boundaries_positions for b in boundaries_positions] 
+    possible_boundaries = list(filter( lambda t: (t[1] - t[0]) >= min_eye_width and (t[1] - t[0]) <= max_eye_width , possible_boundaries))
+    
+    if len(possible_boundaries) == 0 :
+        if debug:
+            print('nothing with distance between ', min_eye_width, ' and ', max_eye_width)
+        first,second = None, None
     else:
-        threshold = (max(GPF_values)-min(GPF_values))* th_factor + min(GPF_values)
-        flag = True
-        first = 0
-        second = 0
-        for i,e in enumerate(GPF_values)  :
- 
-            if( e  < threshold and flag ):
-                flag = False
-                first = i
-            elif(e > threshold and not flag):
-                second = i
-                break
         
-        if debug :
-            axs[1].plot([threshold for i in range(img.shape[1]) ],'g')
-    
+        possible_boundaries_mean_value = list(map( lambda t :  sum(IPF_values[t[0]:t[1]])/(1+t[1]- t[0]) ,possible_boundaries))
+       
+        tmp = list(zip(possible_boundaries, possible_boundaries_mean_value))
+        tmp = filter( lambda x: x[1] < 160, tmp)
+        tmp = list(tmp)
+        
+        if len(tmp) == 0 :
+            first,second = None, None
+        else:
+            possible_boundaries, possible_boundaries_mean_value = list(zip(*tmp))
+
+            region_with_smallest_mean_value = np.argmin(possible_boundaries_mean_value)
+            first,second = possible_boundaries[region_with_smallest_mean_value]
+
+        
+
     #print debug information
     if debug:
-        
-        axs[0].axvline(first)
-        axs[0].axvline(second)
-        axs[1].axvline(first)
-        axs[1].axvline(second)
-        #if height is equal to the length of GPF values it means
-        #that we are considering that dimension
+        if first is not None:
+            for ax in axs:
+                ax.axvline(first, color='b')
+            
+        if second is not None:
+            for ax in axs:
+                ax.axvline(second, color='b')
+       
+        #if the image is vertical rotate the image
         if vertical:
-            axs[2].imshow(np.transpose(img), aspect='auto')
+            axs[-1].imshow(np.transpose(np.array(img)), aspect='auto')
         else :
-            axs[2].imshow(img, aspect='auto')
+            axs[-1].imshow(img, aspect='auto')
 
         plt.show()
 
     return first,second
 
-def fit_iris_with_HPF(img, mask):
+def fit_iris_with_HPF(img, mask, debug=False):
     """
     Extract Iris position using hybrid projective function
     Parameters:
@@ -380,34 +380,29 @@ def fit_iris_with_HPF(img, mask):
     y - eye centre position on y axis
     r - eye radius estimation
     """
-    debug          = False
+    
     #select which method to use: 
     # True: selects the two points with highest positive and negative derivative
     # False: selects the two points based on threshold on (value_max-value_min)*th_factor+value_min
-    y_has_to_be_computed = False
-    greatest_delta = True
-    th_factor      = 0.05
+    
     alpha          = 0.6
-    delta          = 2
 
     if debug:
         #print(img.shape, mask.shape)
         cv2.imshow('mask',mask*255)
-        cv2.imshow('eyes',img)
-    if y_has_to_be_computed:
-        #Y axis
-        #compute IPF, VPF values 
-        IPF_values = list(map(lambda y  : IPF_y(img,mask,y)             , range(img.shape[0])))
-        VPF_values = list(map(lambda y  : VPF_y(img,mask,y, IPF_values) , range(img.shape[0])))
-        
-        #combine IPF and VPF values with alpha coefficient as by paper
-        GPF_values = np.array(VPF_values) *np.float(alpha) - np.array(IPF_values) * np.float(1 - alpha) 
+        cv2.imshow('eye in input',img)
+    
+    #Y axis
+    #compute IPF, VPF values 
+    IPF_values = list(map(lambda y  : IPF_y(img,mask,y)             , range(img.shape[0])))
+    VPF_values = list(map(lambda y  : VPF_y(img,mask,y, IPF_values) , range(img.shape[0])))
+    
+    #combine IPF and VPF values with alpha coefficient prescribed by paper
+    GPF_values = np.array(VPF_values) *np.float(alpha) - np.array(IPF_values) * np.float(1 - alpha) 
 
-        first_y, second_y = HPF_boundaries(img,GPF_values, greatest_delta,th_factor,delta, debug)
-    else:
-
-        first_y     = 0
-        second_y = img.shape[0]-1
+    first_y, second_y = HPF_boundaries(img,GPF_values, IPF_values)
+    if first_y is None or second_y is None:
+        return None
 
     ############
     ############
@@ -419,13 +414,14 @@ def fit_iris_with_HPF(img, mask):
     VPF_values = list(map(lambda x  : VPF_x(img,mask,x, IPF_values) , range(img.shape[1])))
     GPF_values = np.float(alpha) * np.array(VPF_values) - np.float(1 - alpha) * np.array(IPF_values)
 
-    first_x,second_x = HPF_boundaries(img,GPF_values, greatest_delta,th_factor,delta,debug)
-    
+    first_x,second_x = HPF_boundaries(img,GPF_values,IPF_values)
+    if first_x is None or second_x is None:
+        return None
     #computed expected x,y,r of the iris
     x = (first_x+second_x)//2
-    y = (first_y+second_y)//2
     r = np.abs(second_x-first_x)//2
-    #r = np.abs(second_y-first_y)//2
+    y = (first_y+second_y)//2
+
     
     if debug :
         #represent results in an image.
@@ -614,20 +610,11 @@ def iris_position_relative_to_eye_extreme(eye_landmarks, iris_position):
 
     eye_external_landmark   = eye_landmarks[0]
     eye_internal_landmark   = eye_landmarks[3]
-    eye_top_landmark        = eye_landmarks[2]
-    eye_bottom_landmark     = eye_landmarks[4]
+    eye_centre              = (eye_external_landmark+eye_external_landmark)/2
 
     iris_position = np.array(iris_position[:2])
-    
-    eye_corner    = np.array([0,0])
-    eye_corner[0] = eye_external_landmark[0]
-    eye_corner[1] = eye_top_landmark[1]
 
-    eye_dimension    = np.array([0,0])
-    eye_dimension[0] = np.abs(eye_external_landmark[0]   - eye_internal_landmark[0])
-    eye_dimension[1] = np.abs(eye_top_landmark[1]        - eye_bottom_landmark[1]  )
-    
-    ratio_posit   = (iris_position[:2] - eye_corner) /eye_dimension
+    ratio_posit   = (iris_position[:2] - eye_centre) 
     
     return ratio_posit
 
@@ -668,7 +655,7 @@ if __name__ == "__main__":
 
     #surface 3 pro camera 0
     #surface 4 pro camera 1
-    cap = cv2.VideoCapture(0)
+    cap = cv2.VideoCapture(settings.camera)
 
     debug = False
 
