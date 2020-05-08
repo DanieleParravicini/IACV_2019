@@ -65,16 +65,21 @@ class Home:
         #Todo: here i compute and control the mouse position.
         X_l = build_unknown_array(x_l)
         X_r = build_unknown_array(x_r)
-        iris_tracker = iris_position_tracker(settings.camera,err_abs=50,nr_samples_per_read=3, err_rel=30, debug=True)
+        iris_tracker = iris_position_tracker(settings.camera, nr_samples_per_read=5, err_abs=6.5, err_rel=6.5, debug=False)
         gaze_r = None
         gaze_l = None
+
         for i in range(100):
             abs_l, abs_r, rel_l, rel_r = next(iris_tracker)
-            while all(e is None for e in [rel_l, rel_r]):
-            
-                abs_l, abs_r, rel_l, rel_r = next(iris_tracker)
+            if(useAbsPosition):
+                while all(e is None for e in [abs_l, abs_r]):
+                    abs_l, abs_r, rel_l, rel_r = next(iris_tracker)
+                v_l, v_r = abs_l, abs_r
+            else:
+                while all(e is None for e in [rel_l, rel_r]):
+                    abs_l, abs_r, rel_l, rel_r = next(iris_tracker)
+                v_l , v_r = rel_l, rel_r
 
-            v_l , v_r = rel_l, rel_r      
             print(v_l, v_r)
             if v_l is not None:
                 iris_l_param = build_iris_param_array(v_l)
@@ -99,7 +104,7 @@ class Home:
                 print('Right: ', gaze_l)
                 print('Avg:'   , gaze)
 
-        iris_tracker.close()    
+        iris_tracker.close()
 
     def butnew(self, text, number, _class):
         tk.Button(self.frame, text=text,
@@ -142,17 +147,17 @@ class Calibration:
         self.explanation.delete('1.0', tk.END)
         self.explanation.insert(tk.END, f"You have pressed {id_button}th point!\n Calibration started!")
 
-        iris_tracker = iris_position_tracker(settings.camera,err_abs=40, err_rel=20, debug=True)
+        iris_tracker = iris_position_tracker(settings.camera, nr_samples_per_read=8, err_abs=6.5, err_rel=6.5, debug=False)
         abs_l, abs_r, rel_l, rel_r = next(iris_tracker)
-        while any(e is None for e in [abs_l, abs_r]):
-            abs_l, abs_r, rel_l, rel_r = next(iris_tracker)
 
         if(useAbsPosition):
-            v_l = abs_l
-            v_r = abs_r
+            while any(e is None for e in [abs_l, abs_r]):
+                abs_l, abs_r, rel_l, rel_r = next(iris_tracker)
+            v_l, v_r = abs_l, abs_r
         else:
-            v_l = rel_l
-            v_r = rel_r
+            while all(e is None for e in [rel_l, rel_r]):
+                abs_l, abs_r, rel_l, rel_r = next(iris_tracker)
+            v_l, v_r = rel_l, rel_r
 
         calibration_eye_point_left[(id_button-1)*2], calibration_eye_point_left[(id_button*2)-1] = self.build_A_matrix(v_l)
         calibration_eye_point_right[(id_button-1)*2], calibration_eye_point_right[(id_button*2)-1] = self.build_A_matrix(v_r)
