@@ -5,8 +5,10 @@ import ctypes
 import numpy as np
 import iris_position as ir_pos
 import cv2
-import mouse
 import settings 
+import mouse
+from iris_position_tracker import iris_position_tracker
+
 
 calibration_done            = False
 debug                       = False
@@ -43,43 +45,33 @@ class Home:
         #Todo: here i compute and control the mouse position.
         X_l = build_unknown_array(x_l)
         X_r = build_unknown_array(x_r)
-        cap = cv2.VideoCapture(settings.camera)
+       
+        iris_tracker = iris_position_tracker(settings.camera,err_abs=50,nr_samples_per_read=3, err_rel=30, debug=True)
+        
 
         for  i in range(100):
-            _, frame = cap.read()
-            iris_info = ir_pos.irides_position_form_video(frame)
-            try:
-                abs_l, abs_r, rel_l, rel_r = next(iris_info)
-                if(useAbsPosition):
-                    rel_l = abs_l
-                    rel_r = abs_r
-                if(rel_l is None or rel_r is None):
-                    continue
+            abs_l, abs_r, rel_l, rel_r = next(iris_tracker)
+            while any(e is None for e in [abs_l, abs_r]):
+            
+                abs_l, abs_r, rel_l, rel_r = next(iris_tracker)
 
-                iris_l_param = build_iris_param_array(rel_l)
-                iris_r_param = build_iris_param_array(rel_r)
-                
-                gaze_l = X_l.dot(iris_l_param)
-                gaze_r = X_r.dot(iris_r_param)
-                gaze = (((gaze_l+gaze_r)/2))
-                if(np.all(gaze >=0)):
-                    mouse.move(gaze[0], gaze[1], absolute=True, duration=0)
-                print('Left: ' , gaze_r)
-                print('Right: ', gaze_l)
-                print('Avg:' , gaze)
+            v_l = abs_l
+            v_r = abs_r        
+            print(v_l, v_r)
 
-                #gaze alternative test
-                #ir_avg = ((rel_l+rel_r)/2)-0.2
-                #mouse_x = (1824*ir_avg[0])/0.5
-                #mouse_y = (2736*ir_avg[1])/0.5
-                #mouse.move(mouse_x, mouse_y, absolute=True, duration=0)
-                #print(rel_l, rel_r)
+            iris_l_param = build_iris_param_array(v_l)
+            iris_r_param = build_iris_param_array(v_r)
+            
+            gaze_l = X_l.dot(iris_l_param)
+            gaze_r = X_r.dot(iris_r_param)
+            gaze = (((gaze_l+gaze_r)/2))
+            if(np.all(gaze >=0)):
+                mouse.move(gaze[0], gaze[1], absolute=True, duration=0)
+            print('Left: ' , gaze_r)
+            print('Right: ', gaze_l)
+            print('Avg:' , gaze)
 
-                #if(np.all(gaze_l > 0)):
-                    #mouse.move(mouse_x, mouse_y, absolute=True, duration=0)
-                #    pyautogui.moveTo(gaze_l[0], gaze_l[1]) #test with another library
-            except StopIteration:
-                pass
+            
 
     def butnew(self, text, number, _class):
         tk.Button(self.frame, text=text,
@@ -139,33 +131,17 @@ class Calibration:
     def calibrate(self, event, id_button):
         self.explanation.delete('1.0', tk.END)
         self.explanation.insert(tk.END, f"You have pressed {id_button}th point!\n Calibration started!")
-        cap = cv2.VideoCapture(settings.camera)
+        
     
-        n = 5
-        v_l = 0
-        v_r = 0
-        i = 0
-        while(i < n):                                              #average out 5 consequents values
-            _, frame   = cap.read()
-            iris_info  = ir_pos.irides_position_form_video(frame)
-            try:
-                abs_l, abs_r, rel_l, rel_r = next(iris_info)
-                if any( [el is None for el in [abs_l, abs_r, rel_l, rel_r ]]):
-                    continue
-                if(useAbsPosition):
-                    rel_l = abs_l
-                    rel_r = abs_r
-                v_l                 += rel_l
-                v_r                 += rel_r
-                i                   += 1
-            except StopIteration:
-                pass
-       
-        v_l = v_l/n
-        v_r = v_r/n
-        #print(v_l, v_r)
-        cap.release()
+        iris_tracker = iris_position_tracker(settings.camera,err_abs=40, err_rel=20, debug=True)
+        abs_l, abs_r, rel_l, rel_r = next(iris_tracker)
+        while any(e is None for e in [abs_l, abs_r]):
+           
+            abs_l, abs_r, rel_l, rel_r = next(iris_tracker)
 
+        v_l = abs_l
+        v_r = abs_r        
+        print(v_l, v_r)
         calibration_eye_point_left.append(np.array([1+v_l[1]**2, v_l[0], v_l[1], v_l[0]*v_l[1], v_l[0]**2, 0, 0, 0, 0, 0]))
         calibration_eye_point_left.append(np.array([1, 0, 0, 0, 0, v_l[0], v_l[1], v_l[0]*v_l[1], v_l[0]**2, v_l[1]**2]))
         calibration_eye_point_right.append(np.array([1+v_r[1]**2, v_r[0], v_r[1], v_r[0]*v_r[1], v_r[0]**2, 0, 0, 0, 0, 0]))
