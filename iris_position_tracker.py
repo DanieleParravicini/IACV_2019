@@ -16,7 +16,7 @@ def mean_if_below_error(alist, max_error, debug):
     an_array = np.array(alist)
 
     mean     = an_array.mean(axis=0)
-    var      = an_array.var(axis=0)
+    var      = an_array.std(axis=0)
     err      = norm(var)
     if debug:
         print(mean, ' (+/- ', var,  ', magnitude ', err,' )', "shape",mean.shape)
@@ -28,20 +28,26 @@ def mean_if_below_error(alist, max_error, debug):
 
 class iris_position_tracker():
     def __init__(self,camera,nr_samples_per_read=5, err_abs=10, err_rel=10, debug=True):
-        self.camera_stream = cv2.VideoCapture(camera)
         self.n             = nr_samples_per_read
         self.max_err_abs   = err_abs
         self.max_err_rel   = err_rel
         self.debug         = debug
+        self.camera_stream = cv2.VideoCapture(camera)
+        #self.camera_stream.set(cv2.CAP_PROP_OPENNI_MAX_BUFFER_SIZE , self.n*2)
+        
     
     def __iter__(self):
         return self
 
     def __next__(self):
-
+        
         frame_buffer = []
         for i in range(self.n*2):
-            _, frame   = self.camera_stream.read()
+            frame_available = False
+            while not frame_available :
+                frame_available , frame   = self.camera_stream.read()
+            
+
             frame_buffer.append(frame)
 
         abs_position_left_buffer  = []
@@ -56,13 +62,13 @@ class iris_position_tracker():
                     break
                 
                 if abs_l is not None and rel_l is not None:
-                    abs_position_left_buffer.append(abs_l)
-                    rel_position_left_buffer.append(rel_l[:2])
+                    abs_position_left_buffer.append(abs_l[:2])
+                    rel_position_left_buffer.append(rel_l)
 
                 if abs_r is not None and rel_r is not None:
-                    abs_position_right_buffer.append(abs_r)
-                    rel_position_right_buffer.append(rel_r[:2])
-
+                    abs_position_right_buffer.append(abs_r[:2])
+                    rel_position_right_buffer.append(rel_r)
+        
         
 
         if(len(abs_position_left_buffer)> self.n and len(rel_position_left_buffer)>self.n):
@@ -84,4 +90,5 @@ class iris_position_tracker():
             print('res', mean_abs_l, mean_abs_r, mean_rel_l, mean_rel_r)
         return mean_abs_l, mean_abs_r, mean_rel_l, mean_rel_r
        
-        
+    def close(self):
+        self.camera_stream.release()

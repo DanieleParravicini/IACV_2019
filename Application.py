@@ -66,28 +66,40 @@ class Home:
         X_l = build_unknown_array(x_l)
         X_r = build_unknown_array(x_r)
         iris_tracker = iris_position_tracker(settings.camera,err_abs=50,nr_samples_per_read=3, err_rel=30, debug=True)
-
+        gaze_r = None
+        gaze_l = None
         for  i in range(100):
             abs_l, abs_r, rel_l, rel_r = next(iris_tracker)
-            while any(e is None for e in [abs_l, abs_r]):
+            while all(e is None for e in [rel_l, rel_r]):
             
                 abs_l, abs_r, rel_l, rel_r = next(iris_tracker)
 
-            v_l = abs_l
-            v_r = abs_r        
+            v_l , v_r = rel_l, rel_r      
             print(v_l, v_r)
-
-            iris_l_param = build_iris_param_array(v_l)
-            iris_r_param = build_iris_param_array(v_r)
+            if v_l is not None:
+                iris_l_param = build_iris_param_array(v_l)
+                gaze_l = X_l.dot(iris_l_param)
+            if v_r is not None:
+                iris_r_param = build_iris_param_array(v_r)   
+                gaze_r = X_r.dot(iris_r_param)
             
-            gaze_l = X_l.dot(iris_l_param)
-            gaze_r = X_r.dot(iris_r_param)
-            gaze = (((gaze_l+gaze_r)/2))
-            if(np.all(gaze >=0)):
+
+            if v_l is not None and v_r is not None:
+                gaze = (((gaze_l+gaze_r)/2))
+            elif v_l is not None:
+                gaze = gaze_l
+            elif v_r is not None:
+                gaze = gaze_r
+            else:
+                gaze = None
+
+            if(gaze is not None and np.all(gaze >=0)):
                 mouse.move(gaze[0], gaze[1], absolute=True, duration=0)
-            print('Left: ' , gaze_r)
-            print('Right: ', gaze_l)
-            print('Avg:' , gaze)
+                print('Left: ' , gaze_r)
+                print('Right: ', gaze_l)
+                print('Avg:'   , gaze)
+
+        iris_tracker.close()    
 
     def butnew(self, text, number, _class):
         tk.Button(self.frame, text=text,

@@ -490,7 +490,7 @@ def irides_position(frame, face_landmarks):
     return c_left, c_right , iris_rel_left, iris_rel_right
 
 def irides_position_relative_to_rotated_img(rotated_frame, rotated_landmarks, square, use_HPF, debug):
-    debug = True
+    
     (left, mask_left, (top_left,left_left)),(right, mask_right, (top_right, left_right)) = segment_eyes(rotated_frame, rotated_landmarks, square)
 
     is_left_closed, is_right_closed = are_eyes_closed(rotated_landmarks)
@@ -661,7 +661,7 @@ if __name__ == "__main__":
     #surface 3 pro camera 0
     #surface 4 pro camera 1
     cap = cv2.VideoCapture(settings.camera)
-
+    cap.set(cv2.CAP_PROP_OPENNI_MAX_BUFFER_SIZE ,10)
     debug = False
 
     fourcc = cv2.VideoWriter_fourcc('X', 'V', 'I', 'D')
