@@ -68,7 +68,7 @@ class Home:
         iris_tracker = iris_position_tracker(settings.camera,err_abs=50,nr_samples_per_read=3, err_rel=30, debug=True)
         gaze_r = None
         gaze_l = None
-        for  i in range(100):
+        for i in range(100):
             abs_l, abs_r, rel_l, rel_r = next(iris_tracker)
             while all(e is None for e in [rel_l, rel_r]):
             
@@ -117,7 +117,7 @@ class Calibration:
         self.explanation = tk.Text(self.frame, height="2", font="Helvetica")
         self.explanation.pack()
         self.explanation.insert(tk.END, "You have to click in order on the red dot in sequence and waiting 5 seconds\n before move to the next!")
-        self.back = tk.Button(self.frame, text=f"<- Quit Calibration!", fg="red", command=self.master.destroy())
+        self.back = tk.Button(self.frame, text=f"<- Quit Calibration!", fg="red", command=self.close_window)
         self.back.pack()
         calibration_points(self)
         self.frame.pack()
@@ -218,7 +218,9 @@ class Calibration:
         self.show_computed_points(computed_expected_l, 'yellow')
         self.show_computed_points(computed_expected_r, 'green')
         self.canvas.pack(fill=tk.BOTH, expand=1)
-
+    
+    def close_window(self):
+        self.master.destroy()
 
 class Precision:
     def __init__(self, master, number):
@@ -228,8 +230,7 @@ class Precision:
         self.explanation = tk.Text(self.frame, height="2", font="Helvetica")
         self.explanation.pack()
         self.explanation.insert(tk.END, "You have to click in order on the red dot in sequence and wait!")
-        self.back = tk.Button(
-            self.frame, text=f"<- Quit Precision Test!", fg="red", command=self.master.destroy())
+        self.back = tk.Button(self.frame, text=f"<- Quit Precision Test!", fg="red", command=self.close_window)
         self.back.pack()
         calibration_points(self)
         self.frame.pack()
@@ -282,6 +283,8 @@ class Precision:
         print(avg_error_l, avg_error_r, avg_error)
         cap.release()
 
+    def close_window(self):
+        self.master.destroy()
 
 if __name__ == "__main__":
     if debug:
