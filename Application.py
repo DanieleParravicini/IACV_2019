@@ -10,14 +10,20 @@ import settings
 
 calibration_done            = False
 debug                       = False
+useAbsPosition              = True
 calibration_eye_point_left  = []
 calibration_eye_point_right = []
 calibration_point           = []
 #x_l = [788.83569323, -1864.62986779, 7511.81004873, -20722.69084935, 4419.24471401, -1900.23835635, -5613.35123008, 85767.55041025, -46978.37603168, -23478.1630365]  # calibration parameters for me to test overwritten by calibration
 #x_r = [976.19248026, 4989.40397841, 4598.99944016, -20727.05497126, -3023.62783183, 10482.96314502, -14402.16369339, -30344.84762274, 1588.7347783, 32797.23808307]
 x_l = [4345.72378965, -13689.7759815, -9581.0823355, 46100.87408067, -16833.59181134, -43571.70242215, 22602.53804898, 157015.11947266, -28691.93582351, -100083.86167376]
-x_r = [1837.01134574, 597.13590803, 2654.92980602, -8946.69742881, -3511.28005365, -3183.2087794, 6434.38467014, -6705.20414857, 6594.92066802, -18056.1286827]
+x_r = [3.30882637e-01, 5.82059229e+02, -7.11895683e+02, 1.51578799e+00, -1.44032318e+00, -5.29422288e+02, 6.51063269e+02, 6.20962177e-01, 4.73292176e-01, -1.46584279e+00]
 
+def build_iris_param_array(rel_pose):
+    return np.array([1, rel_pose[0], rel_pose[1], rel_pose[0]*rel_pose[1], rel_pose[0]**2, rel_pose[1]**2])
+
+def build_unknown_array(x):
+    return np.array([[x[0], x[1], x[2], x[3], x[4], x[0]], [x[0], x[5], x[6], x[7], x[8], x[9]]])
 
 class Home:
     def __init__(self, master):
@@ -35,8 +41,8 @@ class Home:
     def mouseControl(self):
         self.master.iconify()
         #Todo: here i compute and control the mouse position.
-        X_l = np.array([[x_l[0], x_l[1], x_l[2], x_l[3], x_l[4], x_l[0]], [x_l[0], x_l[5], x_l[6], x_l[7], x_l[8], x_l[9]]])
-        X_r = np.array([[x_r[0], x_r[1], x_r[2], x_r[3], x_r[4], x_r[0]], [x_r[0], x_r[5], x_r[6], x_r[7], x_r[8], x_r[9]]])
+        X_l = build_unknown_array(x_l)
+        X_r = build_unknown_array(x_r)
         cap = cv2.VideoCapture(settings.camera)
 
         for  i in range(100):
@@ -44,33 +50,36 @@ class Home:
             iris_info = ir_pos.irides_position_form_video(frame)
             try:
                 abs_l, abs_r, rel_l, rel_r = next(iris_info)
-                rel_r = abs_l
-                rel_r = abs_r
+                if(useAbsPosition):
+                    rel_l = abs_l
+                    rel_r = abs_r
                 if(rel_l is None or rel_r is None):
                     continue
 
-                iris_l_param = np.array([1, rel_l[0], rel_l[1], rel_l[0]*rel_l[1], rel_l[0]**2, rel_l[1]**2])
-                iris_r_param = np.array([1, rel_r[0], rel_r[1], rel_r[0]*rel_r[1], rel_r[0]**2, rel_r[1]**2])
-                print(iris_l_param)
+                iris_l_param = build_iris_param_array(rel_l)
+                iris_r_param = build_iris_param_array(rel_r)
+                
                 gaze_l = X_l.dot(iris_l_param)
                 gaze_r = X_r.dot(iris_r_param)
                 gaze = (((gaze_l+gaze_r)/2))
-                mouse.move(gaze[0], gaze[1], absolute=True, duration=0)
-                #print(gaze_l)
+                if(np.all(gaze >=0)):
+                    mouse.move(gaze[0], gaze[1], absolute=True, duration=0)
+                print('Left: ' , gaze_r)
+                print('Right: ', gaze_l)
+                print('Avg:' , gaze)
 
                 #gaze alternative test
-                ##ir_avg = ((rel_l+rel_r)/2)-0.2
+                #ir_avg = ((rel_l+rel_r)/2)-0.2
                 #mouse_x = (1824*ir_avg[0])/0.5
                 #mouse_y = (2736*ir_avg[1])/0.5
                 #mouse.move(mouse_x, mouse_y, absolute=True, duration=0)
-                print(rel_l, rel_r)
+                #print(rel_l, rel_r)
 
                 #if(np.all(gaze_l > 0)):
                     #mouse.move(mouse_x, mouse_y, absolute=True, duration=0)
                 #    pyautogui.moveTo(gaze_l[0], gaze_l[1]) #test with another library
             except StopIteration:
                 pass
-
 
     def butnew(self, text, number, _class):
         tk.Button(self.frame, text=text,
@@ -93,7 +102,7 @@ class Calibration:
         self.frame.pack()
 
     def create_circle(self, x, y, canvas):  # center coordinates, radius
-        r = 10
+        r = 5
         x0 = x - r
         y0 = y - r
         x1 = x + r
@@ -117,7 +126,7 @@ class Calibration:
     def calibration_points(self):
         self.canvas = tk.Canvas(self.master)
         user32 = ctypes.windll.user32
-        padding = 150
+        padding = 100
         x = (user32.GetSystemMetrics(0)-2*padding)/2
         y = (user32.GetSystemMetrics(1)-2*padding)/2
         for row in range(3):
@@ -143,11 +152,12 @@ class Calibration:
                 abs_l, abs_r, rel_l, rel_r = next(iris_info)
                 if any( [el is None for el in [abs_l, abs_r, rel_l, rel_r ]]):
                     continue
-
-                v_l                 += abs_l
-                v_r                 += abs_r
+                if(useAbsPosition):
+                    rel_l = abs_l
+                    rel_r = abs_r
+                v_l                 += rel_l
+                v_r                 += rel_r
                 i                   += 1
-                #print(abs_l, abs_r)
             except StopIteration:
                 pass
        
@@ -168,6 +178,7 @@ class Calibration:
             self.explanation.delete('1.0', tk.END)
             self.explanation.insert(tk.END, f"Calibration Ended!")
             self.compute_parameters()
+
 
     def compute_parameters(self):
         #devo risolvere un sistema di 9*2 equazioni in (6*2-3)*2 incognite
@@ -198,20 +209,25 @@ class Calibration:
 
         B = np.asarray(calibration_point).flatten()
         B=B.astype(int)
+
         #left eye
         A_l = np.vstack(calibration_eye_point_left)
         x_l = np.linalg.lstsq(A_l, B, rcond=None)[0]
-        
-        print('left: ', list(zip(A_l.dot(x_l), B)))
+        computed_expected_l = list(zip(A_l.dot(x_l), B))
+        print('right: ', computed_expected_l)
+
         #right eye
         A_r = np.vstack(calibration_eye_point_right)
         x_r = np.linalg.lstsq(A_r, B, rcond=None)[0]
-        
-        print('right: ', list(zip(A_r.dot(x_r),B)))
-        #print('Calibration parameters for left eye: ' + str(x_l))
-        #print('Calibration parameters for right eye: ' + str(x_r))
+
+        computed_expected_r = list(zip(A_r.dot(x_r), B))
+        print('right: ', computed_expected_r)
+        print(x_l)
+        print(x_r)
+
         self.explanation.delete('1.0', tk.END)
         self.explanation.insert(tk.END, f"Parameters succesfully computed!\nNow you can start using the gaze mouse.")
+
 
     def close_window(self):
         calibration_done = True
@@ -234,7 +250,7 @@ class Precision:
         self.frame.pack()
 
     def create_circle(self, x, y, canvas):  # center coordinates, radius
-        r = 10
+        r = 5
         x0 = x - r
         y0 = y - r
         x1 = x + r
@@ -251,7 +267,7 @@ class Precision:
     def calibration_points(self):
         self.canvas = tk.Canvas(self.master)
         user32 = ctypes.windll.user32
-        padding = 150
+        padding = 100
         x = (user32.GetSystemMetrics(0)-2*padding)/2
         y = (user32.GetSystemMetrics(1)-2*padding)/2
         for row in range(3):
@@ -263,12 +279,9 @@ class Precision:
 
     def compute_precision(self, event, id_button):
         self.explanation.delete('1.0', tk.END)
-        self.explanation.insert(
-            tk.END, f"You have pressed {id_button}th point!\n Precision Test started!")
-        X_l = np.array([[x_l[0], x_l[1], x_l[2], x_l[3], x_l[4], x_l[0]], [
-                       x_l[0], x_l[5], x_l[6], x_l[7], x_l[8], x_l[9]]])
-        X_r = np.array([[x_r[0], x_r[1], x_r[2], x_r[3], x_r[4], x_r[0]], [
-                       x_r[0], x_r[5], x_r[6], x_r[7], x_r[8], x_r[9]]])
+        self.explanation.insert(tk.END, f"You have pressed {id_button}th point!\n Precision Test started!")
+        X_l = build_unknown_array(x_l)
+        X_r = build_unknown_array(x_r)
         cap = cv2.VideoCapture(settings.camera)
 
         n = 60
@@ -283,10 +296,8 @@ class Precision:
                 _, _, rel_l, rel_r = next(iris_info)
                 if(rel_l is None or rel_r is None):
                     continue
-                iris_l_param = np.array(
-                    [1, rel_l[0], rel_l[1], rel_l[0]*rel_l[1], rel_l[0]**2, rel_l[1]**2])
-                iris_r_param = np.array(
-                    [1, rel_r[0], rel_r[1], rel_r[0]*rel_r[1], rel_r[0]**2, rel_r[1]**2])
+                iris_l_param = build_iris_param_array(rel_l)
+                iris_r_param = build_iris_param_array(rel_r)
                 #print(iris_l_param)
                 gaze_l = X_l.dot(iris_l_param)
                 gaze_r = X_r.dot(iris_r_param)
