@@ -45,7 +45,7 @@ class Home:
         X_r = build_unknown_array(x_r)
         cap = cv2.VideoCapture(settings.camera)
 
-        for  i in range(100):
+        for  i in range(200):
             _, frame = cap.read()
             iris_info = ir_pos.irides_position_form_video(frame)
             try:
@@ -101,13 +101,13 @@ class Calibration:
         self.calibration_points()
         self.frame.pack()
 
-    def create_circle(self, x, y, canvas):  # center coordinates, radius
+    def create_circle(self, x, y, canvas, fill = 'red'):  # center coordinates, radius
         r = 5
         x0 = x - r
         y0 = y - r
         x1 = x + r
         y1 = y + r
-        return canvas.create_oval(x0, y0, x1, y1, fill="red", activefill = 'orange')
+        return canvas.create_oval(x0, y0, x1, y1, fill = fill , activefill = 'orange')
 
     def drawCircle(self, x, y, row, column):
         self.circular_button = self.create_circle(x, y, self.canvas)
@@ -213,20 +213,32 @@ class Calibration:
         #left eye
         A_l = np.vstack(calibration_eye_point_left)
         x_l = np.linalg.lstsq(A_l, B, rcond=None)[0]
-        computed_expected_l = list(zip(A_l.dot(x_l), B))
-        print('right: ', computed_expected_l)
+        computed_expected_l = A_l.dot(x_l)
+        print('right: ', list(zip(computed_expected_l, B)))
 
         #right eye
         A_r = np.vstack(calibration_eye_point_right)
         x_r = np.linalg.lstsq(A_r, B, rcond=None)[0]
 
-        computed_expected_r = list(zip(A_r.dot(x_r), B))
-        print('right: ', computed_expected_r)
+        computed_expected_r = A_r.dot(x_r)
+        print('right: ', list(zip(computed_expected_r, B)))
         print(x_l)
         print(x_r)
 
         self.explanation.delete('1.0', tk.END)
         self.explanation.insert(tk.END, f"Parameters succesfully computed!\nNow you can start using the gaze mouse.")
+
+        for i in range(0,len(computed_expected_l),2):
+            x, y = computed_expected_l[i:i+2]
+            self.create_circle(x, y, self.canvas, 'yellow')
+            self.canvas.create_text(x, y-15, text=f"{i//2+1}")
+
+        for i in range(0, len(computed_expected_r), 2):
+            x, y = computed_expected_r[i:i+2]
+            self.create_circle(x, y, self.canvas, 'green')
+            self.canvas.create_text(x, y-15, text=f"{i//2+1}")
+    
+        self.canvas.pack(fill=tk.BOTH, expand=1)
 
 
     def close_window(self):
