@@ -109,7 +109,7 @@ def segment_eye(frame, eye_landmarks, square):
         #extract bounding box, with padding if required. 
         l,r,t,b = bounding_box(eye_pts, frame.shape[1], frame.shape[0],padx,pady)
         #extract a square submatrix
-        eye     = frame[t:b,l:r]
+        eye     = np.array(frame[t:b,l:r])
         #define an easy mask all 1.
         mask    = np.ones_like(eye)
         mask    = mask.astype(np.bool)
@@ -148,7 +148,7 @@ def segment_eyes(frame,face_landmarks, square=True):
     return segment_eye(frame, eye_left_landmarks, square) , segment_eye(frame, eye_right_landmarks, square)
 
 def prep_fit_iris(img, rscale_factor=5):
-    erode_dilate = False
+    erode_dilate = True
     img          = cv2.equalizeHist(img)
     img          = rescale(img, rscale_factor)
 
@@ -278,45 +278,50 @@ def VPF_y(img, mask, y, IPF):
     return (delta).sum() / mask[y,:].sum() 
 
 def HPF_boundaries(img,GPF_values,IPF_values, debug=False):
-    
+    debug          = False
+    use_derivative = True
+
     approximate_eye_width   = img.shape[0]
-    
-    min_eye_width           = max(approximate_eye_width*0.6,1)
+    spacing = 3
+    derivate_GPF_values     = np.abs(np.gradient(GPF_values, spacing))
+   
+    vertical = (img.shape[0] == len(GPF_values))
+    min_eye_width           = max(approximate_eye_width *(0.6 if vertical else 0.8) ,1)
     max_eye_width           = max(approximate_eye_width*1.2,1)
     #print('between ', min_eye_width, ' and ', max_eye_width)
     #if min_eye_width < 3:
     #    return None,None
     
-    minimum_peak_prominence = 0.5
+    minimum_peak_prominence = 0.6
     
     if debug:
         #this is done in order to not force square pixels in the image
-        vertical = (img.shape[0] == len(GPF_values))
         gs_kw  = dict(width_ratios=[1], height_ratios=[1,1, 1,img.shape[1]/img.shape[0] if vertical else 1 ])
         _, axs = plt.subplots(ncols=1, nrows=4, constrained_layout=True,  gridspec_kw=gs_kw)
         axs[0].plot(GPF_values,'r')
-        axs[1].plot(IPF_values,'g')
+        axs[1].plot(derivate_GPF_values, 'r')
+        axs[2].plot(IPF_values,'g')
 
     #first detect topmost n peaks
-    peaks, peak_properties  = find_peaks(GPF_values,prominence=minimum_peak_prominence, distance=approximate_eye_width//4)
+    peaks, peak_properties  = find_peaks( derivate_GPF_values if use_derivative else GPF_values,prominence=minimum_peak_prominence, distance=approximate_eye_width//4)
     #plot detected peaks
     if(debug):
         for p in peaks:
             for ax in axs[:-1]:
                 ax.axvline(p, color='r')
-    n_top_peaks             = 6
+    n_top_peaks             = 4
     
 
     if len(peaks) >= n_top_peaks :
         #take n_top_most peaks with greatest "prominence", i.e. greatest elevation w.r.t. their neighbourhood
         prominences = peak_properties["prominences"]
        
-        #to extract thhe elements
+        #to extract the elements
         peak_indices         = np.argpartition(-1*prominences, n_top_peaks-1)[:n_top_peaks]
         peaks_location       = [peaks[i] for i in peak_indices] 
         peaks                = sorted(peaks_location)
 
-    pad = 2
+    pad = 1
     boundaries_positions = list(itertools.chain([pad],peaks,[len(GPF_values)-pad]))
 
     #plot selected boundaries
@@ -485,7 +490,7 @@ def irides_position(frame, face_landmarks):
     return c_left, c_right , iris_rel_left, iris_rel_right
 
 def irides_position_relative_to_rotated_img(rotated_frame, rotated_landmarks, square, use_HPF, debug):
-
+    debug = True
     (left, mask_left, (top_left,left_left)),(right, mask_right, (top_right, left_right)) = segment_eyes(rotated_frame, rotated_landmarks, square)
 
     is_left_closed, is_right_closed = are_eyes_closed(rotated_landmarks)
@@ -610,7 +615,7 @@ def iris_position_relative_to_eye_extreme(eye_landmarks, iris_position):
 
     eye_external_landmark   = eye_landmarks[0]
     eye_internal_landmark   = eye_landmarks[3]
-    eye_centre              = (eye_external_landmark+eye_external_landmark)/2
+    eye_centre              = (eye_external_landmark+eye_internal_landmark)/2
 
     iris_position = np.array(iris_position[:2])
 
