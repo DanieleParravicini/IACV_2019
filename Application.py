@@ -5,7 +5,7 @@ import ctypes
 import numpy as np
 import iris_position as ir_pos
 import cv2
-import settings 
+import settings
 import mouse
 from iris_position_tracker import iris_position_tracker
 
@@ -13,11 +13,11 @@ from iris_position_tracker import iris_position_tracker
 calibration_done            = False
 debug                       = False
 useAbsPosition              = True
-calibration_eye_point_left  = []
-calibration_eye_point_right = []
+num_calibration_point       = 9
+calibration_eye_point_left  = np.zeros((num_calibration_point*2, num_calibration_point+1))
+calibration_eye_point_right = np.zeros((num_calibration_point*2, num_calibration_point+1))
 calibration_point           = []
-#x_l = [788.83569323, -1864.62986779, 7511.81004873, -20722.69084935, 4419.24471401, -1900.23835635, -5613.35123008, 85767.55041025, -46978.37603168, -23478.1630365]  # calibration parameters for me to test overwritten by calibration
-#x_r = [976.19248026, 4989.40397841, 4598.99944016, -20727.05497126, -3023.62783183, 10482.96314502, -14402.16369339, -30344.84762274, 1588.7347783, 32797.23808307]
+calibration_done = np.zeros(num_calibration_point)
 x_l = [4345.72378965, -13689.7759815, -9581.0823355, 46100.87408067, -16833.59181134, -43571.70242215, 22602.53804898, 157015.11947266, -28691.93582351, -100083.86167376]
 x_r = [3.30882637e-01, 5.82059229e+02, -7.11895683e+02, 1.51578799e+00, -1.44032318e+00, -5.29422288e+02, 6.51063269e+02, 6.20962177e-01, 4.73292176e-01, -1.46584279e+00]
 
@@ -27,14 +27,34 @@ def build_iris_param_array(rel_pose):
 def build_unknown_array(x):
     return np.array([[x[0], x[1], x[2], x[3], x[4], x[0]], [x[0], x[5], x[6], x[7], x[8], x[9]]])
 
+def create_circle(x, y, canvas, fill = 'red'):  # center coordinates, radius
+    r = 5
+    x0 = x - r
+    y0 = y - r
+    x1 = x + r
+    y1 = y + r
+    return canvas.create_oval(x0, y0, x1, y1, fill = fill , activefill = 'orange')
+
+def calibration_points(self):
+    self.canvas = tk.Canvas(self.master)
+    user32 = ctypes.windll.user32
+    padding = 100
+    x = (user32.GetSystemMetrics(0)-2*padding)/2
+    y = (user32.GetSystemMetrics(1)-2*padding)/2
+    for row in range(3):
+        for column in range(3):
+            self.drawCircle(x*column+padding, y*row +
+                            padding, row+1, column+1)
+            point = (x*column+padding, y*row+padding)
+            calibration_point.append(point)
+    self.canvas.pack(fill=tk.BOTH, expand=1)
+
 class Home:
     def __init__(self, master):
         self.master = master
         self.master.geometry("400x400")
         self.frame = tk.Frame(self.master)
-        if(calibration_done == False):
-            tk.Label(self.frame, text="Calibration required before use:").pack(
-                side="top")
+        tk.Label(self.frame, text="Calibration required before use:").pack(side="top")
         self.butnew("Calibration", "2", Calibration)
         tk.Button(self.frame, text = "Gaze Mouse", command = self.mouseControl).pack()
         self.butnew("Precision Test", "3", Precision)
@@ -45,9 +65,7 @@ class Home:
         #Todo: here i compute and control the mouse position.
         X_l = build_unknown_array(x_l)
         X_r = build_unknown_array(x_r)
-       
         iris_tracker = iris_position_tracker(settings.camera,err_abs=50,nr_samples_per_read=3, err_rel=30, debug=True)
-        
 
         for  i in range(100):
             abs_l, abs_r, rel_l, rel_r = next(iris_tracker)
@@ -71,8 +89,6 @@ class Home:
             print('Right: ', gaze_l)
             print('Avg:' , gaze)
 
-            
-
     def butnew(self, text, number, _class):
         tk.Button(self.frame, text=text,
                   command=lambda: self.new_window(number, _class)).pack()
@@ -80,6 +96,7 @@ class Home:
     def new_window(self, number, _class):
         self.new = tk.Toplevel(self.master)
         _class(self.new, number)
+
 class Calibration:
     def __init__(self, master, number):
         self.master = master
@@ -88,73 +105,57 @@ class Calibration:
         self.explanation = tk.Text(self.frame, height="2", font="Helvetica")
         self.explanation.pack()
         self.explanation.insert(tk.END, "You have to click in order on the red dot in sequence and waiting 5 seconds\n before move to the next!")
-        self.back = tk.Button(self.frame, text=f"<- Quit Calibration!", fg="red", command=self.close_window)
+        self.back = tk.Button(self.frame, text=f"<- Quit Calibration!", fg="red", command=self.master.destroy())
         self.back.pack()
-        self.calibration_points()
+        calibration_points(self)
         self.frame.pack()
 
-    def create_circle(self, x, y, canvas, fill = 'red'):  # center coordinates, radius
-        r = 5
-        x0 = x - r
-        y0 = y - r
-        x1 = x + r
-        y1 = y + r
-        return canvas.create_oval(x0, y0, x1, y1, fill = fill , activefill = 'orange')
+    def show_computed_points(self, computed_expected, color):
+        for i in range(0, len(computed_expected), 2):
+            x, y = computed_expected[i:i+2]
+            create_circle(x, y, self.canvas, color)
+            self.canvas.create_text(x, y-15, text=f"{i//2+1}")
 
     def drawCircle(self, x, y, row, column):
-        self.circular_button = self.create_circle(x, y, self.canvas)
+        self.circular_button = create_circle(x, y, self.canvas)
         button_number = column+(row-1)*3
         self.canvas.create_text(x,y-15, text=f"{button_number}")
-        # self.clicked just for testing but than it will call calibrate
         self.canvas.tag_bind(self.circular_button, "<Button-1>", lambda event, circle_button = self.circular_button: self.calibrate(event, button_number))
 
-    def clicked(self, event, id_button):        #function used just for debug
-        self.canvas.itemconfig(self.circular_button, fill="green")
-        # to be investigate how to change color over circle presssed
-        self.explanation.delete('1.0', tk.END)
-        self.explanation.insert(tk.END, f"You have pressed {id_button}th point!")
-        print(id_button)
-
-    def calibration_points(self):
-        self.canvas = tk.Canvas(self.master)
-        user32 = ctypes.windll.user32
-        padding = 100
-        x = (user32.GetSystemMetrics(0)-2*padding)/2
-        y = (user32.GetSystemMetrics(1)-2*padding)/2
-        for row in range(3):
-            for column in range(3):
-                self.drawCircle(x*column+padding, y*row+padding, row+1, column+1)
-                point = (x*column+padding, y*row+padding)
-                calibration_point.append(point)
-        self.canvas.pack(fill=tk.BOTH, expand=1)
+    def build_A_matrix(self, v):
+        return np.array([1+v[1]**2, v[0], v[1], v[0]*v[1], v[0]**2, 0, 0, 0, 0, 0]), np.array([1, 0, 0, 0, 0, v[0], v[1], v[0]*v[1], v[0]**2, v[1]**2])
 
     def calibrate(self, event, id_button):
+        text = ""
         self.explanation.delete('1.0', tk.END)
         self.explanation.insert(tk.END, f"You have pressed {id_button}th point!\n Calibration started!")
-        
-    
+
         iris_tracker = iris_position_tracker(settings.camera,err_abs=40, err_rel=20, debug=True)
         abs_l, abs_r, rel_l, rel_r = next(iris_tracker)
         while any(e is None for e in [abs_l, abs_r]):
-           
             abs_l, abs_r, rel_l, rel_r = next(iris_tracker)
 
-        v_l = abs_l
-        v_r = abs_r        
-        print(v_l, v_r)
-        calibration_eye_point_left.append(np.array([1+v_l[1]**2, v_l[0], v_l[1], v_l[0]*v_l[1], v_l[0]**2, 0, 0, 0, 0, 0]))
-        calibration_eye_point_left.append(np.array([1, 0, 0, 0, 0, v_l[0], v_l[1], v_l[0]*v_l[1], v_l[0]**2, v_l[1]**2]))
-        calibration_eye_point_right.append(np.array([1+v_r[1]**2, v_r[0], v_r[1], v_r[0]*v_r[1], v_r[0]**2, 0, 0, 0, 0, 0]))
-        calibration_eye_point_right.append(np.array([1, 0, 0, 0, 0, v_r[0], v_r[1], v_r[0]*v_r[1], v_r[0]**2, v_r[1]**2]))
+        if(useAbsPosition):
+            v_l = abs_l
+            v_r = abs_r
+        else:
+            v_l = rel_l
+            v_r = rel_r
 
-        if(id_button < 9):
+        calibration_eye_point_left[(id_button-1)*2], calibration_eye_point_left[(id_button*2)-1] = self.build_A_matrix(v_l)
+        calibration_eye_point_right[(id_button-1)*2], calibration_eye_point_right[(id_button*2)-1] = self.build_A_matrix(v_r)
+        calibration_done[id_button-1] = 1
+
+        if(np.any(calibration_done == 0)):
             self.explanation.delete('1.0', tk.END)
-            self.explanation.insert(tk.END, f"Click on the {id_button+1}th point!")            #consider to change the visual appearance of the dot to give a feedback  to user
+            for i in range(num_calibration_point):
+                if(calibration_done[i] == 0):
+                    text += str(i+1)+', '
+            self.explanation.insert(tk.END, "Remaning Points: " + text)            #consider to change the visual appearance of the dot to give a feedback  to user
         else:
             self.explanation.delete('1.0', tk.END)
-            self.explanation.insert(tk.END, f"Calibration Ended!")
+            self.explanation.insert(tk.END, f"Calibration Ended!\nYou can redo any point by cliknig on it!")
             self.compute_parameters()
-
 
     def compute_parameters(self):
         #devo risolvere un sistema di 9*2 equazioni in (6*2-3)*2 incognite
@@ -198,28 +199,13 @@ class Calibration:
 
         computed_expected_r = A_r.dot(x_r)
         print('right: ', list(zip(computed_expected_r, B)))
-        print(x_l)
-        print(x_r)
 
         self.explanation.delete('1.0', tk.END)
-        self.explanation.insert(tk.END, f"Parameters succesfully computed!\nNow you can start using the gaze mouse.")
+        self.explanation.insert(tk.END, f"Parameters succesfully computed! YELLOW: left, GREEN: right\nYou can recalibrate each point by cliking on it or start using gaze mouse.")
 
-        for i in range(0,len(computed_expected_l),2):
-            x, y = computed_expected_l[i:i+2]
-            self.create_circle(x, y, self.canvas, 'yellow')
-            self.canvas.create_text(x, y-15, text=f"{i//2+1}")
-
-        for i in range(0, len(computed_expected_r), 2):
-            x, y = computed_expected_r[i:i+2]
-            self.create_circle(x, y, self.canvas, 'green')
-            self.canvas.create_text(x, y-15, text=f"{i//2+1}")
-    
+        self.show_computed_points(computed_expected_l, 'yellow')
+        self.show_computed_points(computed_expected_r, 'green')
         self.canvas.pack(fill=tk.BOTH, expand=1)
-
-
-    def close_window(self):
-        calibration_done = True
-        self.master.destroy()
 
 
 class Precision:
@@ -229,41 +215,18 @@ class Precision:
         self.frame = tk.Frame(self.master)
         self.explanation = tk.Text(self.frame, height="2", font="Helvetica")
         self.explanation.pack()
-        self.explanation.insert(
-            tk.END, "You have to click in order on the red dot in sequence and wait!")
+        self.explanation.insert(tk.END, "You have to click in order on the red dot in sequence and wait!")
         self.back = tk.Button(
-            self.frame, text=f"<- Quit Precision Test!", fg="red", command=self.close_window)
+            self.frame, text=f"<- Quit Precision Test!", fg="red", command=self.master.destroy())
         self.back.pack()
-        self.calibration_points()
+        calibration_points(self)
         self.frame.pack()
 
-    def create_circle(self, x, y, canvas):  # center coordinates, radius
-        r = 5
-        x0 = x - r
-        y0 = y - r
-        x1 = x + r
-        y1 = y + r
-        return canvas.create_oval(x0, y0, x1, y1, fill="red", activefill='orange')
-
     def drawCircle(self, x, y, row, column):
-        self.circular_button = self.create_circle(x, y, self.canvas)
+        self.circular_button = create_circle(x, y, self.canvas)
         button_number = column+(row-1)*3
         self.canvas.create_text(x, y-15, text=f"{button_number}")
-        self.canvas.tag_bind(self.circular_button, "<Button-1>", lambda event,
-                             circle_button=self.circular_button: self.compute_precision(event, button_number))
-
-    def calibration_points(self):
-        self.canvas = tk.Canvas(self.master)
-        user32 = ctypes.windll.user32
-        padding = 100
-        x = (user32.GetSystemMetrics(0)-2*padding)/2
-        y = (user32.GetSystemMetrics(1)-2*padding)/2
-        for row in range(3):
-            for column in range(3):
-                self.drawCircle(x*column+padding, y*row + padding, row+1, column+1)
-                point = (x*column+padding, y*row+padding)
-                calibration_point.append(point)
-        self.canvas.pack(fill=tk.BOTH, expand=1)
+        self.canvas.tag_bind(self.circular_button, "<Button-1>", lambda event, circle_button=self.circular_button: self.compute_precision(event, button_number))
 
     def compute_precision(self, event, id_button):
         self.explanation.delete('1.0', tk.END)
@@ -307,9 +270,6 @@ class Precision:
         print(avg_error_l, avg_error_r, avg_error)
         cap.release()
 
-    def close_window(self):
-        calibration_done = True
-        self.master.destroy()
 
 if __name__ == "__main__":
     if debug:
