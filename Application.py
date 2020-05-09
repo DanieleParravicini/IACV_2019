@@ -14,18 +14,20 @@ calibration_done            = False
 debug                       = False
 useAbsPosition              = True
 num_calibration_point       = 9
-calibration_eye_point_left  = np.zeros((num_calibration_point*2, num_calibration_point+1))
-calibration_eye_point_right = np.zeros((num_calibration_point*2, num_calibration_point+1))
+num_equations               = 10
+calibration_eye_point_left  = np.zeros((num_calibration_point*2, num_equations))
+calibration_eye_point_right = np.zeros((num_calibration_point*2, num_equations))
 calibration_point           = []
-calibration_done = np.zeros(num_calibration_point)
+calibration_done            = np.zeros(num_calibration_point)
 x_l = [4345.72378965, -13689.7759815, -9581.0823355, 46100.87408067, -16833.59181134, -43571.70242215, 22602.53804898, 157015.11947266, -28691.93582351, -100083.86167376]
 x_r = [3.30882637e-01, 5.82059229e+02, -7.11895683e+02, 1.51578799e+00, -1.44032318e+00, -5.29422288e+02, 6.51063269e+02, 6.20962177e-01, 4.73292176e-01, -1.46584279e+00]
 
-def build_iris_param_array(rel_pose):
-    return np.array([1, rel_pose[0], rel_pose[1], rel_pose[0]*rel_pose[1], rel_pose[0]**2, rel_pose[1]**2])
+def build_iris_param_array(x):
+    return np.array([1, x[0], x[1], x[0]*x[1], x[0]**2, x[1]**2])
 
 def build_unknown_array(x):
-    return np.array([[x[0], x[1], x[2], x[3], x[4], x[0]], [x[0], x[5], x[6], x[7], x[8], x[9]]])
+    return np.array([[x[0], x[1], x[2], x[3], x[4], x[0]],
+                     [x[0], x[5], x[6], x[7], x[8], x[9]]])
 
 def create_circle(x, y, canvas, fill = 'red'):  # center coordinates, radius
     r = 5
@@ -65,28 +67,32 @@ class Home:
         #Todo: here i compute and control the mouse position.
         X_l = build_unknown_array(x_l)
         X_r = build_unknown_array(x_r)
-        iris_tracker = iris_position_tracker(settings.camera, nr_samples_per_read=5, err_abs=6.5, err_rel=6.5, debug=False)
+        iris_tracker = iris_position_tracker(settings.camera, nr_samples_per_read=4, err_abs=6.5, err_rel=6.5, debug=False)
         gaze_r = None
         gaze_l = None
 
         for i in range(100):
             abs_l, abs_r, rel_l, rel_r = next(iris_tracker)
             if(useAbsPosition):
-                while all(e is None for e in [abs_l, abs_r]):
-                    abs_l, abs_r, rel_l, rel_r = next(iris_tracker)
                 v_l, v_r = abs_l, abs_r
             else:
-                while all(e is None for e in [rel_l, rel_r]):
-                    abs_l, abs_r, rel_l, rel_r = next(iris_tracker)
                 v_l , v_r = rel_l, rel_r
+
+            while all(e is None for e in [ v_l, v_r ]):
+                abs_l, abs_r, rel_l, rel_r = next(iris_tracker)
+                if(useAbsPosition):
+                    v_l, v_r = abs_l, abs_r
+                else:
+                    v_l , v_r = rel_l, rel_r
+                  
 
             print(v_l, v_r)
             if v_l is not None:
                 iris_l_param = build_iris_param_array(v_l)
-                gaze_l = X_l.dot(iris_l_param)
+                gaze_l       = X_l.dot(iris_l_param)
             if v_r is not None:
                 iris_r_param = build_iris_param_array(v_r)   
-                gaze_r = X_r.dot(iris_r_param)
+                gaze_r       = X_r.dot(iris_r_param)
             
 
             if v_l is not None and v_r is not None:
@@ -140,28 +146,35 @@ class Calibration:
         self.canvas.tag_bind(self.circular_button, "<Button-1>", lambda event, circle_button = self.circular_button: self.calibrate(event, button_number))
 
     def build_A_matrix(self, v):
-        return np.array([1+v[1]**2, v[0], v[1], v[0]*v[1], v[0]**2, 0, 0, 0, 0, 0]), np.array([1, 0, 0, 0, 0, v[0], v[1], v[0]*v[1], v[0]**2, v[1]**2])
+        return (np.array([1+v[1]**2 , v[0]  , v[1]  , v[0]*v[1] , v[0]**2   , 0     , 0     , 0         , 0         , 0         ]), 
+                np.array([1         ,   0   , 0     , 0         , 0         , v[0]  , v[1]  , v[0]*v[1] , v[0]**2   , v[1]**2   ])    )
 
     def calibrate(self, event, id_button):
         text = ""
         self.explanation.delete('1.0', tk.END)
         self.explanation.insert(tk.END, f"You have pressed {id_button}th point!\n Calibration started!")
 
-        iris_tracker = iris_position_tracker(settings.camera, nr_samples_per_read=8, err_abs=6.5, err_rel=6.5, debug=False)
+        iris_tracker = iris_position_tracker(settings.camera, nr_samples_per_read=6, err_abs=6.5, err_rel=6.5, debug=False)
         abs_l, abs_r, rel_l, rel_r = next(iris_tracker)
-
         if(useAbsPosition):
-            while any(e is None for e in [abs_l, abs_r]):
-                abs_l, abs_r, rel_l, rel_r = next(iris_tracker)
-            v_l, v_r = abs_l, abs_r
+            v_l, v_r  = abs_l, abs_r
         else:
-            while all(e is None for e in [rel_l, rel_r]):
-                abs_l, abs_r, rel_l, rel_r = next(iris_tracker)
-            v_l, v_r = rel_l, rel_r
+            v_l , v_r = rel_l, rel_r
+        
+        while any(e is None for e in [ v_l, v_r]):
+            abs_l, abs_r, rel_l, rel_r = next(iris_tracker)
+            if(useAbsPosition):
+                v_l, v_r  = abs_l, abs_r
+            else:
+                v_l , v_r = rel_l, rel_r
 
-        calibration_eye_point_left[(id_button-1)*2], calibration_eye_point_left[(id_button*2)-1] = self.build_A_matrix(v_l)
-        calibration_eye_point_right[(id_button-1)*2], calibration_eye_point_right[(id_button*2)-1] = self.build_A_matrix(v_r)
-        calibration_done[id_button-1] = 1
+        idx = (id_button-1)
+
+        calibration_eye_point_left[ idx*2], calibration_eye_point_left[  idx*2+1] = self.build_A_matrix(v_l)
+        calibration_eye_point_right[idx*2], calibration_eye_point_right[ idx*2+1] = self.build_A_matrix(v_r)
+        print(calibration_eye_point_left)
+        
+        calibration_done[idx] = 1
 
         if(np.any(calibration_done == 0)):
             self.explanation.delete('1.0', tk.END)
@@ -202,13 +215,13 @@ class Calibration:
         global x_r
 
         B = np.asarray(calibration_point).flatten()
-        B=B.astype(int)
+        #B = B.astype(int)
 
         #left eye
         A_l = np.vstack(calibration_eye_point_left)
         x_l = np.linalg.lstsq(A_l, B, rcond=None)[0]
         computed_expected_l = A_l.dot(x_l)
-        print('right: ', list(zip(computed_expected_l, B)))
+        print('left: ', list(zip(computed_expected_l, B)))
 
         #right eye
         A_r = np.vstack(calibration_eye_point_right)
@@ -297,5 +310,5 @@ if __name__ == "__main__":
         print("Resolution parameters. \nWidth =", user32.GetSystemMetrics(0)*2)
         print("Height =", user32.GetSystemMetrics(1)*2)
     root = tk.Tk()
-    app = Home(root)
+    app  = Home(root)
     root.mainloop()
