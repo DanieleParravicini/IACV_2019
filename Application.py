@@ -29,15 +29,18 @@ def build_unknown_array(x):
     return np.array([[x[0], x[1], x[2], x[3], x[4], x[0]],
                      [x[0], x[5], x[6], x[7], x[8], x[9]]])
 
-def create_circle(x, y, canvas, fill = 'red'):  # center coordinates, radius
+
+def create_circle(x, y, canvas, tags = "", fill='red'):  # center coordinates, radius
     r = 5
     x0 = x - r
     y0 = y - r
     x1 = x + r
     y1 = y + r
-    return canvas.create_oval(x0, y0, x1, y1, fill = fill , activefill = 'orange')
+    return canvas.create_oval(x0, y0, x1, y1, fill = fill , tags = tags, activefill = 'orange')
 
 def calibration_points(self):
+    calibration_point.clear()
+    print(calibration_point)
     self.canvas = tk.Canvas(self.master)
     user32 = ctypes.windll.user32
     padding = 100
@@ -60,6 +63,7 @@ class Home:
         self.butnew("Calibration", "2", Calibration)
         tk.Button(self.frame, text = "Gaze Mouse", command = self.mouseControl).pack()
         self.butnew("Precision Test", "3", Precision)
+        #tk.Button(self.frame, text = "Switch relative to absolute and viceversa", command = self.change_relative_to_absolute())
         self.frame.pack()
 
     def mouseControl(self):
@@ -136,8 +140,8 @@ class Calibration:
     def show_computed_points(self, computed_expected, color):
         for i in range(0, len(computed_expected), 2):
             x, y = computed_expected[i:i+2]
-            create_circle(x, y, self.canvas, color)
-            self.canvas.create_text(x, y-15, text=f"{i//2+1}")
+            create_circle(x, y, self.canvas, 'computed', color)
+            self.canvas.create_text(x, y-15, text=f"{i//2+1}", tags = 'computed')
 
     def drawCircle(self, x, y, row, column):
         self.circular_button = create_circle(x, y, self.canvas)
@@ -172,7 +176,7 @@ class Calibration:
 
         calibration_eye_point_left[ idx*2], calibration_eye_point_left[  idx*2+1] = self.build_A_matrix(v_l)
         calibration_eye_point_right[idx*2], calibration_eye_point_right[ idx*2+1] = self.build_A_matrix(v_r)
-        print(calibration_eye_point_left)
+        #print(calibration_eye_point_left)
         
         calibration_done[idx] = 1
 
@@ -232,7 +236,8 @@ class Calibration:
 
         self.explanation.delete('1.0', tk.END)
         self.explanation.insert(tk.END, f"Parameters succesfully computed! YELLOW: left, GREEN: right\nYou can recalibrate each point by cliking on it or start using gaze mouse.")
-
+        
+        self.canvas.delete('computed')
         self.show_computed_points(computed_expected_l, 'yellow')
         self.show_computed_points(computed_expected_r, 'green')
         self.canvas.pack(fill=tk.BOTH, expand=1)
