@@ -474,10 +474,10 @@ def irides_position(frame, face_landmarks):
     
     c_left, c_right = irides_position_relative_to_rotated_img(rotated_frame=rotated_frame, rotated_landmarks=rotated_landmarks, square=square, use_HPF=use_HPF,debug=debug)
 
-    #Note we have to recall irides_position_relative_to_eye_extreme here
+    #Note we have to recall irides_position_relative here
     #because c_left,c_right have to be expressed w.r.t. to the entire image
     # and to keep simple the computations we operate with a rotated image
-    iris_rel_left, iris_rel_right = irides_position_relative_to_eye_extreme(rotated_landmarks, (c_left,c_right))
+    iris_rel_left, iris_rel_right = irides_position_relative(rotated_landmarks, (c_left,c_right))
 
 
     #Since we have rotated the image we have to rotate back the point
@@ -585,15 +585,25 @@ def is_eye_closed(eye_landmarks, scale):
     if(H<=13):
         return True
 
-def irides_position_relative_to_eye_extreme(face_landmarks, irides_position):
+def irides_position_relative(face_landmarks, irides_position, relative_to_eye_centre=False):
 
-    left_eye_landmarks  = get_left_eye_landmarks(face_landmarks)
-    right_eye_landmarks = get_right_eye_landmarks(face_landmarks)
+    if relative_to_eye_centre:
+        left_eye_landmarks  = get_left_eye_landmarks(face_landmarks)
+        right_eye_landmarks = get_right_eye_landmarks(face_landmarks)
 
-    left_relative_position  = iris_position_relative_to_eye_extreme(left_eye_landmarks, irides_position[0]) 
-    right_relative_position = iris_position_relative_to_eye_extreme(right_eye_landmarks,irides_position[1]) 
+        left_relative_position  = iris_position_relative_to_eye_extreme(left_eye_landmarks, irides_position[0]) 
+        right_relative_position = iris_position_relative_to_eye_extreme(right_eye_landmarks,irides_position[1]) 
+    else :
+        reference = face_landmarks[27]
+        left_relative_position  = iris_position_relative_to_reference(reference, irides_position[0]) 
+        right_relative_position = iris_position_relative_to_reference(reference, irides_position[1])
 
     return left_relative_position, right_relative_position
+
+def iris_position_relative_to_reference(reference_point, iris_position):
+    if iris_position is None :
+        return None
+    return iris_position[:2] - reference_point 
 
 def iris_position_relative_to_eye_extreme(eye_landmarks, iris_position):
 

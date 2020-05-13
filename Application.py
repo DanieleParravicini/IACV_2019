@@ -109,10 +109,12 @@ class Home:
                 gaze = None
 
             if(gaze is not None and np.all(gaze >=0)):
-                mouse.move(gaze[0], gaze[1], absolute=True, duration=0)
+                mouse.move(gaze[0], gaze[1], absolute=True, duration=0.1)
                 print('Left: ' , gaze_r)
                 print('Right: ', gaze_l)
                 print('Avg:'   , gaze)
+                
+                time.sleep(0.5)
 
         iris_tracker.close()
 
@@ -172,6 +174,7 @@ class Calibration:
             else:
                 v_l , v_r = rel_l, rel_r
 
+        iris_tracker.close()
         idx = (id_button-1)
 
         calibration_eye_point_left[ idx*2], calibration_eye_point_left[  idx*2+1] = self.build_A_matrix(v_l)
