@@ -12,7 +12,7 @@ from iris_position_tracker import iris_position_tracker
 
 calibration_done            = False
 debug                       = False
-useAbsPosition              = True
+useAbsPosition              = False
 num_calibration_point       = 9
 num_equations               = 10
 calibration_eye_point_left  = np.zeros((num_calibration_point*2, num_equations))
@@ -114,7 +114,7 @@ class Home:
                 print('Right: ', gaze_l)
                 print('Avg:'   , gaze)
                 
-                time.sleep(0.5)
+                #time.sleep(0.5)
 
         iris_tracker.close()
 
