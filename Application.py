@@ -12,7 +12,7 @@ from iris_position_tracker import iris_position_tracker
 
 calibration_done            = False
 debug                       = False
-useAbsPosition              = False
+useAbsPosition              = True
 num_calibration_point       = 9
 num_equations               = 10
 calibration_eye_point_left  = np.zeros((num_calibration_point*2, num_equations))
@@ -63,12 +63,10 @@ class Home:
         self.butnew("Calibration", "2", Calibration)
         tk.Button(self.frame, text = "Gaze Mouse", command = self.mouseControl).pack()
         self.butnew("Precision Test", "3", Precision)
-        #tk.Button(self.frame, text = "Switch relative to absolute and viceversa", command = self.change_relative_to_absolute())
         self.frame.pack()
 
     def mouseControl(self):
         self.master.iconify()
-        #Todo: here i compute and control the mouse position.
         X_l = build_unknown_array(x_l)
         X_r = build_unknown_array(x_r)
         iris_tracker = iris_position_tracker(settings.camera, nr_samples_per_read=4, err_abs=6.5, err_rel=6.5, debug=False)
@@ -95,7 +93,7 @@ class Home:
                 iris_l_param = build_iris_param_array(v_l)
                 gaze_l       = X_l.dot(iris_l_param)
             if v_r is not None:
-                iris_r_param = build_iris_param_array(v_r)   
+                iris_r_param = build_iris_param_array(v_r)
                 gaze_r       = X_r.dot(iris_r_param)
             
 
@@ -113,7 +111,6 @@ class Home:
                 print('Left: ' , gaze_r)
                 print('Right: ', gaze_l)
                 print('Avg:'   , gaze)
-                
                 #time.sleep(0.5)
 
         iris_tracker.close()
@@ -179,7 +176,6 @@ class Calibration:
 
         calibration_eye_point_left[ idx*2], calibration_eye_point_left[  idx*2+1] = self.build_A_matrix(v_l)
         calibration_eye_point_right[idx*2], calibration_eye_point_right[ idx*2+1] = self.build_A_matrix(v_r)
-        #print(calibration_eye_point_left)
         
         calibration_done[idx] = 1
 
@@ -188,41 +184,17 @@ class Calibration:
             for i in range(num_calibration_point):
                 if(calibration_done[i] == 0):
                     text += str(i+1)+', '
-            self.explanation.insert(tk.END, "Remaning Points: " + text)            #consider to change the visual appearance of the dot to give a feedback  to user
+            self.explanation.insert(tk.END, "Remaning Points: " + text)
         else:
             self.explanation.delete('1.0', tk.END)
             self.explanation.insert(tk.END, f"Calibration Ended!\nYou can redo any point by cliknig on it!")
             self.compute_parameters()
 
     def compute_parameters(self):
-        #devo risolvere un sistema di 9*2 equazioni in (6*2-3)*2 incognite
-        #for each point i call a function that calls gaze position and returns the actual eye position and i average out this value.
-        # A=[[1+v_y^2, v_x, v_y, v_x*v_y, v_x^2, 0, 0, 0, 0, 0]
-        #   [1, 0, 0, 0, 0, v_x, v_y, v_x*v_y, v_x^2, v_y^2]
-        #   [1+v_x^2, v_x, v_y, v_x*v_y, v_x^2, 0, 0, 0, 0, 0]
-        #   [1, 0, 0, 0, 0, v_x, v_y, v_x*v_y, v_x^2, v_y^2]
-        #   [1+v_x^2, v_x, v_y, v_x*v_y, v_x^2, 0, 0, 0, 0, 0]
-        #   [1, 0, 0, 0, 0, v_x, v_y, v_x*v_y, v_x^2, v_y^2]
-        #   [1+v_x^2, v_x, v_y, v_x*v_y, v_x^2, 0, 0, 0, 0, 0]
-        #   [1, 0, 0, 0, 0, v_x, v_y, v_x*v_y, v_x^2, v_y^2]
-        #   [1+v_x^2, v_x, v_y, v_x*v_y, v_x^2, 0, 0, 0, 0, 0]
-        #   [1, 0, 0, 0, 0, v_x, v_y, v_x*v_y, v_x^2, v_y^2]
-        #   [1+v_x^2, v_x, v_y, v_x*v_y, v_x^2, 0, 0, 0, 0, 0]
-        #   [1, 0, 0, 0, 0, v_x, v_y, v_x*v_y, v_x^2, v_y^2]
-        #   [1+v_x^2, v_x, v_y, v_x*v_y, v_x^2, 0, 0, 0, 0, 0]
-        #   [1, 0, 0, 0, 0, v_x, v_y, v_x*v_y, v_x^2, v_y^2]
-        #   [1+v_x^2, v_x, v_y, v_x*v_y, v_x^2, 0, 0, 0, 0, 0]
-        #   [1, 0, 0, 0, 0, v_x, v_y, v_x*v_y, v_x^2, v_y^2]
-        #   [1+v_x^2, v_x, v_y, v_x*v_y, v_x^2, 0, 0, 0, 0, 0]
-        #   [1, 0, 0, 0, 0, v_x, v_y, v_x*v_y, v_x^2, v_y^2]
-        #x=[a_0, a_1, a_2, a_3, a_4, b_1, b_2, b_3, b_4, b_5]]
-        #B=[s_x,s_y,s_x,s_y,s_x,s_y,s_x,s_y,s_x,s_y,s_x,s_y,s_x,s_y,s_x,s_y,s_x,s_y]
-
         global x_l
         global x_r
 
         B = np.asarray(calibration_point).flatten()
-        #B = B.astype(int)
 
         #left eye
         A_l = np.vstack(calibration_eye_point_left)
@@ -239,7 +211,6 @@ class Calibration:
 
         self.explanation.delete('1.0', tk.END)
         self.explanation.insert(tk.END, f"Parameters succesfully computed! YELLOW: left, GREEN: right\nYou can recalibrate each point by cliking on it or start using gaze mouse.")
-        
         self.canvas.delete('computed')
         self.show_computed_points(computed_expected_l, 'yellow')
         self.show_computed_points(computed_expected_r, 'green')
@@ -279,7 +250,7 @@ class Precision:
         avg_error_l = 0
         avg_error_r = 0
         avg_error = 0
-        while(i < n):  # average out 5 consequents values
+        while(i < n):
             _, frame = cap.read()
             iris_info = ir_pos.irides_position_form_video(frame)
             try:
@@ -288,11 +259,9 @@ class Precision:
                     continue
                 iris_l_param = build_iris_param_array(rel_l)
                 iris_r_param = build_iris_param_array(rel_r)
-                #print(iris_l_param)
                 gaze_l = X_l.dot(iris_l_param)
                 gaze_r = X_r.dot(iris_r_param)
                 gaze = abs(((gaze_l+gaze_r)/2))
-                #TODO: here i compute the error
                 error_l = abs(gaze_l-calibration_point[id_button-1])
                 error_r = abs(gaze_r-calibration_point[id_button-1])
                 error = abs(gaze-calibration_point[id_button-1])

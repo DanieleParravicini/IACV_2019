@@ -8,7 +8,10 @@ import iris_position as ir_pos
 from time import gmtime, strftime
 import settings
 
-directory_images    = 'iris_position_test_directory'
+#directory_images    = 'iris_position_test_directory'
+#directory_images = 'iris_position_test_directory_daniele'
+directory_images = 'iris_position_test_directory_giorgio'
+
 left_eye_extreme1   = 'left_eye_extreme1'  
 left_eye_extreme2   = 'left_eye_extreme2'  
 left_eye_centre     = 'left_eye_centre'    
@@ -135,9 +138,9 @@ def test_data(json_data, debug=False):
                 tmp = cv2.circle(tmp, tuple(eye_left_extreme2_expected              ),1,(0,255,0),1)
                 tmp = cv2.circle(tmp, tuple(eye_right_extreme1_expected             ), 1, (0, 255, 0), 1)
                 tmp = cv2.circle(tmp, tuple(eye_right_extreme2_expected             ), 1, (0, 255, 0), 1)
-                #red predicted
-                tmp = cv2.circle(tmp, tuple(centre_left_predicted.astype(np.int)    ),1,(0,0,255),1)
-                tmp = cv2.circle(tmp, tuple(centre_right_predicted.astype(np.int)   ),1,(0,0,255),1)
+                #fuxcia predicted
+                tmp = cv2.circle(tmp, tuple(centre_left_predicted.astype(np.int)    ),1,(255,0,255),2)
+                tmp = cv2.circle(tmp, tuple(centre_right_predicted.astype(np.int)   ),1,(255,0,255),2)
                 cv2.imshow('result',tmp)
                 cv2.waitKey(delay_to_see_debug)
             
